@@ -3,6 +3,9 @@ TODO
 
 - [x] Endless map: chunk-based platforms extend horizontally and vertically; falling off the platform field is lethal
 - [x] Dot compass: purchasable upgrade points to the nearest uncollected dot
+- [ ] Add Vite (dev server, hot reload, production build)
+- [ ] Split index.html script into modules (e.g. chunks.js, upgrades.js, draw.js, main.js), keeping game rules separate from drawing
+- [ ] Keep adding features in plain JavaScript for now
 
 
 DESIGN NOTES
