@@ -56,5 +56,6 @@ OPEN DECISIONS
 ==============
 
 - Should currency buy upgrades during the current run, permanently between runs, or both? (Start with in-run for the hackathon.)
+- Should we use ElevenLabs for game audio, such as voice lines or generated sound assets?
 - Final theme and art style.
 - Engine / tech stack.
