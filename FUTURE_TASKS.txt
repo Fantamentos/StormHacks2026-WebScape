@@ -4,6 +4,16 @@ FUTURE TASKS
 Ideas for later. Not part of the current work (see TODO_TASKS.txt).
 
 
+COLLAPSE POLISH
+===============
+
+- Faster kill option during the collapse (the slow void fall can feel too forgiving while platforms vanish).
+- Warning polish: flashing that speeds up near removal, and sound cues; currently platforms turn solid white.
+- Collapse variations: different wave shapes (sweeping lines, random patches) and per-round wave patterns.
+- Procedural check that every collapse wave leaves a connected route to the exit.
+- Remaining upgrades: shield variants, dot magnet, last chance (see UPGRADES).
+
+
 BACKEND (player data, achievements, login, authentication)
 ==========================================================
 

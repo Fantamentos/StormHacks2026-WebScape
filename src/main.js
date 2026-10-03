@@ -1,12 +1,15 @@
-import { ensureChunks } from './chunks.js';
+import { CHUNK_HEIGHT, CHUNK_WIDTH, ensureChunks, loadChunkArea } from './chunks.js';
+import { startCollapseWaves, updateCollapse } from './collapse.js';
 import { drawGame } from './draw.js';
 import { createOwnedUpgrades, purchaseUpgrade, upgrades } from './upgrades.js';
 
 const canvas = document.querySelector('#game');
 const ctx = canvas.getContext('2d');
+const VOID_DEATH_DEPTH = 650;
 const state = {
   canvas,
   ctx,
+  voidDeathDepth: VOID_DEATH_DEPTH,
   width: canvas.width,
   height: canvas.height,
   phaseNode: document.querySelector('#phase'),
@@ -23,7 +26,6 @@ const state = {
   mode: 'ready',
   credits: 0,
   round: 1,
-  zoneY: canvas.height + 15,
   elapsed: 0,
   messageTimer: 0,
   normalCollected: 0,
@@ -32,11 +34,13 @@ const state = {
   player: null,
   enemy: null,
   exit: null,
+  exitPlatform: null,
+  collapse: null,
   lastTime: 0
 };
 
 state.syncHud = function syncHud() {
-  const labels = { ready: 'Ready', collect: 'Collect', bonus: 'Escape!', shop: 'Upgrade', dead: 'Run over', escaped: 'Cleared' };
+  const labels = { ready: 'Ready', collect: 'Collect', collapse: 'Collapse!', shop: 'Upgrade', dead: 'Run over', escaped: 'Cleared' };
   state.phaseNode.textContent = labels[state.mode] || 'Ready';
   state.dotsNode.innerHTML = `${state.normalCollected} <small>/ 10</small>`;
   state.creditsNode.textContent = state.credits;
@@ -54,9 +58,12 @@ function resetRound() {
   ensureChunks(state);
   state.platforms.push({ x: -80, y: 470, w: 240, h: 16, chunk: 'start' });
   state.player.y = 436;
+  state.player.groundY = state.player.y;
+  state.camera = { x: state.player.x + state.player.w / 2 - state.width / 2, y: state.player.y + state.player.h / 2 - state.height / 2 };
   state.enemy = { x: 330, y: 440, w: 31, h: 30, vx: 95 + state.round * 7, min: 250, max: 510 };
   state.exit = null;
-  state.zoneY = state.player.y + state.height + 20;
+  state.exitPlatform = null;
+  state.collapse = null;
   state.elapsed = 0;
   state.mode = 'ready';
   state.syncHud();
@@ -69,7 +76,7 @@ function beginRound() {
 }
 
 function jump() {
-  if (state.mode !== 'collect' && state.mode !== 'bonus') return;
+  if (state.mode !== 'collect' && state.mode !== 'collapse') return;
   if (state.player.grounded || (state.owned.doubleJump && state.player.jumps < 2)) {
     state.player.vy = state.player.grounded ? -470 : -430;
     state.player.grounded = false;
@@ -81,33 +88,41 @@ function collide(a, b) {
   return a && b && a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
-function startBonus() {
-  state.mode = 'bonus';
+function startCollapse() {
+  state.mode = 'collapse';
+  state.exitPlatform = state.platforms.find(platform => platform.chunk === 'start');
+  const start = state.exitPlatform;
+  state.exit = { x: start.x + start.w / 2 - 21, y: start.y - 50, w: 42, h: 50 };
+
+  // Load the whole region between the player and the exit so a route back exists.
+  const cx = [Math.floor(state.player.x / CHUNK_WIDTH), Math.floor(state.exit.x / CHUNK_WIDTH)];
+  const cy = [Math.floor(state.player.y / CHUNK_HEIGHT), Math.floor(state.exit.y / CHUNK_HEIGHT)];
+  loadChunkArea(state, Math.min(...cx) - 1, Math.max(...cx) + 1, Math.min(...cy) - 1, Math.max(...cy) + 1);
+
+  const origin = { x: start.x + start.w / 2, y: start.y };
+  const candidates = state.platforms
+    .filter(platform => platform !== start)
+    .sort((a, b) => ((b.x - origin.x) ** 2 + (b.y - origin.y) ** 2) - ((a.x - origin.x) ** 2 + (a.y - origin.y) ** 2));
+  const count = Math.min(10, candidates.length);
   state.dots = [];
-  ensureChunks(state);
-  for (let index = 0; index < 10; index += 1) {
-    const targetX = state.player.x + 120 + index * 88;
-    const target = state.platforms
-      .filter(platform => Math.abs(platform.x + platform.w / 2 - targetX) < 105 && platform.y < state.player.y + 40 && platform.y > state.player.y - 170)
-      .sort((a, b) => Math.abs(a.x + a.w / 2 - targetX) - Math.abs(b.x + b.w / 2 - targetX))[0];
-    if (target) state.dots.push({ x: targetX, y: target.y - 27, type: 'currency', taken: false, chunk: target.chunk });
+  for (let index = 0; index < count; index += 1) {
+    const platform = candidates[Math.floor(index * candidates.length / count)];
+    state.dots.push({ x: platform.x + platform.w / 2, y: platform.y - 27, type: 'currency', taken: false, chunk: platform.chunk, platform });
   }
-  const exitX = state.player.x + 470;
-  const exitPlatform = state.platforms
-    .filter(platform => Math.abs(platform.x + platform.w / 2 - exitX) < 105 && platform.y < state.player.y + 40 && platform.y > state.player.y - 180)
-    .sort((a, b) => Math.abs(a.x + a.w / 2 - exitX) - Math.abs(b.x + b.w / 2 - exitX))[0];
-  if (exitPlatform) state.exit = { x: exitPlatform.x + exitPlatform.w - 48, y: exitPlatform.y - 54, w: 42, h: 50 };
-  state.zoneY = state.player.y + state.height * 0.70;
+
+  startCollapseWaves(state);
   state.messageTimer = 2;
   state.syncHud();
 }
 
 function update(dt) {
-  if (state.mode !== 'collect' && state.mode !== 'bonus') return;
+  if (state.mode !== 'collect' && state.mode !== 'collapse') return;
   state.elapsed += dt;
-  state.camera.x += (state.player.x - state.width * 0.38 - state.camera.x) * Math.min(1, dt * 5);
-  state.camera.y = Math.min(state.camera.y, state.player.y - state.height * 0.55);
-  ensureChunks(state);
+  const follow = Math.min(1, dt * 6);
+  state.camera.x += (state.player.x + state.player.w / 2 - state.width / 2 - state.camera.x) * follow;
+  state.camera.y += (state.player.y + state.player.h / 2 - state.height / 2 - state.camera.y) * follow;
+  if (state.mode === 'collect') ensureChunks(state);
+  else updateCollapse(state, dt);
   state.player.invulnerable = Math.max(0, state.player.invulnerable - dt);
   state.player.dashCooldown = Math.max(0, state.player.dashCooldown - dt);
   state.player.dashTime = Math.max(0, state.player.dashTime - dt);
@@ -129,11 +144,12 @@ function update(dt) {
       state.player.y = platform.y - state.player.h;
       state.player.vy = 0;
       state.player.grounded = true;
+      state.player.groundY = platform.y;
       state.player.jumps = 0;
     }
   }
 
-  if (state.player.y > state.camera.y + state.height + 40 || (state.mode === 'bonus' && state.player.y + state.player.h >= state.zoneY)) {
+  if (state.player.y - state.player.groundY > VOID_DEATH_DEPTH) {
     state.mode = 'dead';
     state.syncHud();
     return;
@@ -165,17 +181,10 @@ function update(dt) {
     else state.normalCollected += 1;
   }
 
-  if (state.mode === 'collect' && state.normalCollected >= 10) startBonus();
-  if (state.mode === 'bonus') {
-    state.zoneY -= (27 + state.round * 2) * (state.owned.slowZone ? 0.75 : 1) * dt;
-    if (collide(state.player, state.exit)) {
-      state.mode = 'shop';
-      state.syncHud();
-    }
-    if (state.player.y + state.player.h >= state.zoneY) {
-      state.mode = 'dead';
-      state.syncHud();
-    }
+  if (state.mode === 'collect' && state.normalCollected >= 10) startCollapse();
+  if (state.mode === 'collapse' && collide(state.player, state.exit)) {
+    state.mode = 'shop';
+    state.syncHud();
   }
   state.messageTimer = Math.max(0, state.messageTimer - dt);
   state.syncHud();
@@ -202,7 +211,7 @@ window.addEventListener('keydown', event => {
     } else if (state.mode === 'ready' || state.mode === 'dead') beginRound();
   }
   if (code.startsWith('Digit')) purchaseUpgrade(state, Number(code.slice(5)) - 1);
-  if (code === 'ShiftLeft' && state.owned.dash && state.player.dashCooldown <= 0 && (state.mode === 'collect' || state.mode === 'bonus')) {
+  if (code === 'ShiftLeft' && state.owned.dash && state.player.dashCooldown <= 0 && (state.mode === 'collect' || state.mode === 'collapse')) {
     state.player.dashTime = 0.18;
     state.player.dashCooldown = 1.1;
     state.player.vy = 0;

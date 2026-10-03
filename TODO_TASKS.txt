@@ -6,6 +6,16 @@ TODO
 - [x] Add Vite (dev server, hot reload, production build)
 - [x] Split index.html script into modules (chunks.js, upgrades.js, draw.js, main.js), keeping game rules separate from drawing
 - [x] Keep adding features in plain JavaScript for now
+- [x] Camera centered on the player on both axes; player can descend freely
+- [x] Void fall death: die after falling 650 px below the last platform landed on (VOID_DEATH_DEPTH in main.js)
+- [x] Bonus phase renamed to Collapse; rising death zone removed
+- [x] Collapse: start platform becomes the exit; farthest platforms from the exit turn white for 2 s then vanish in waves (4 s gap), currency dots vanish with their platforms
+- [ ] Decide collapse speed: warning time, gap time, wave size; consider faster waves in later rounds (constants in src/collapse.js)
+- [ ] Guarantee a jumpable route to the start survives each wave (current waves can strand the player)
+- [ ] Rework the "Slow the rise" upgrade (currently does nothing) into a collapse-related effect, e.g. longer warning time
+- [ ] Enemies: redesign for the collapse (patrol bound to a platform, removed with it); currently one fixed-range enemy
+- [ ] Playtest the collapse phase in the browser and tune distances, dot placement and timing
+- [ ] Update README.md and the design notes below to describe collapse (needs your approval first)
 
 
 DESIGN NOTES

@@ -110,8 +110,8 @@ export function drawGame(ctx, state, width, height) {
   ctx.save();
   ctx.translate(-state.camera.x, -state.camera.y);
   for (const platform of state.platforms) {
-    ctx.fillStyle = '#34484a'; ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
-    ctx.fillStyle = '#86b69a'; ctx.fillRect(platform.x, platform.y, platform.w, 3);
+    ctx.fillStyle = platform.warning ? '#ffffff' : '#34484a'; ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
+    ctx.fillStyle = platform.warning ? '#ffffff' : '#86b69a'; ctx.fillRect(platform.x, platform.y, platform.w, 3);
   }
   for (const dot of state.dots) {
     if (dot.taken) continue;
@@ -121,19 +121,13 @@ export function drawGame(ctx, state, width, height) {
     ctx.arc(dot.x, dot.y, isCurrency ? 6 : 5, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
     ctx.beginPath(); ctx.fillStyle = isCurrency ? '#fff0bb' : '#ffffff'; ctx.arc(dot.x - 1, dot.y - 1, 1.6, 0, Math.PI * 2); ctx.fill();
   }
-  if (state.exit && (state.mode === 'bonus' || state.mode === 'shop')) {
+  if (state.exit && (state.mode === 'collapse' || state.mode === 'shop')) {
     ctx.globalAlpha = 0.6 + Math.sin(state.elapsed * 4) * 0.12;
     roundedRect(ctx, state.exit.x, state.exit.y, state.exit.w, state.exit.h, 5, '#143f3a', '#9fe3bd');
     ctx.fillStyle = '#b8f1cb'; ctx.fillRect(state.exit.x + 8, state.exit.y + 8, 26, 3);
     ctx.fillRect(state.exit.x + 8, state.exit.y + 8, 3, 33); ctx.fillRect(state.exit.x + 31, state.exit.y + 8, 3, 33);
     ctx.globalAlpha = 1;
     ctx.fillStyle = '#c5d4cd'; ctx.font = '11px "DM Mono", monospace'; ctx.textAlign = 'center'; ctx.fillText('EXIT', state.exit.x + state.exit.w / 2, state.exit.y - 8);
-  }
-  if (state.mode === 'bonus') {
-    ctx.fillStyle = 'rgba(245, 84, 66, .80)'; ctx.fillRect(state.camera.x, state.zoneY, width, height);
-    ctx.fillStyle = '#ff826f'; ctx.fillRect(state.camera.x, state.zoneY - 4, width, 4);
-    ctx.fillStyle = 'rgba(255, 130, 111, .13)'; ctx.fillRect(state.camera.x, state.zoneY - 20, width, 16);
-    ctx.fillStyle = '#ffad9f'; ctx.font = '11px "DM Mono", monospace'; ctx.textAlign = 'left'; ctx.fillText('DEATH ZONE', state.camera.x + 18, Math.max(state.camera.y + 18, state.zoneY - 12));
   }
   roundedRect(ctx, state.enemy.x, state.enemy.y, state.enemy.w, state.enemy.h, 6, '#e87965');
   ctx.fillStyle = '#381f21'; ctx.fillRect(state.enemy.x + 7, state.enemy.y + 9, 4, 4); ctx.fillRect(state.enemy.x + 20, state.enemy.y + 9, 4, 4);
@@ -150,16 +144,26 @@ export function drawGame(ctx, state, width, height) {
   }
   ctx.restore();
 
-  if (state.owned.compass && (state.mode === 'collect' || state.mode === 'bonus')) drawCompass(ctx, state, width);
-  if (state.mode === 'ready') drawOverlay(ctx, width, height, 'UPDRAFT', 'Collect every pale dot to open the bonus phase.', 'Press ENTER to drop in');
-  if (state.mode === 'dead') drawOverlay(ctx, width, height, 'RUN ENDED', 'The death zone is lethal. The shield only stops the enemy.', `Credits banked: ${state.credits}  ·  Press ENTER to retry`);
+  const voidFall = (state.mode === 'collect' || state.mode === 'collapse') ? (state.player.y - state.player.groundY) / state.voidDeathDepth : 0;
+  if (voidFall > 0.15) {
+    const depth = Math.min(1, voidFall);
+    const vignette = ctx.createRadialGradient(width / 2, height / 2, height * 0.25, width / 2, height / 2, height * 0.85);
+    vignette.addColorStop(0, 'rgba(6, 8, 14, 0)');
+    vignette.addColorStop(1, `rgba(6, 8, 14, ${(depth * 0.9).toFixed(2)})`);
+    ctx.fillStyle = vignette; ctx.fillRect(0, 0, width, height);
+    ctx.textAlign = 'center'; ctx.fillStyle = '#ffad9f'; ctx.font = '500 12px "DM Mono", monospace';
+    ctx.fillText('FALLING INTO THE VOID', width / 2, height - 28);
+  }
+  if (state.owned.compass && (state.mode === 'collect' || state.mode === 'collapse')) drawCompass(ctx, state, width);
+  if (state.mode === 'ready') drawOverlay(ctx, width, height, 'UPDRAFT', 'Collect every pale dot to start the collapse.', 'Press ENTER to drop in');
+  if (state.mode === 'dead') drawOverlay(ctx, width, height, 'RUN ENDED', 'You fell into the void or were struck by the enemy.', `Credits banked: ${state.credits}  ·  Press ENTER to retry`);
   if (state.mode === 'escaped') drawOverlay(ctx, width, height, 'ARENA CLEARED', 'The exit is yours. Spend your credits on upgrades.', 'Press ENTER to continue');
   if (state.mode === 'shop') drawShop(ctx, state, width, height, roundedRect);
-  if (state.messageTimer > 0 && state.mode === 'bonus') {
+  if (state.messageTimer > 0 && state.mode === 'collapse') {
     roundedRect(ctx, 336, 24, 288, 42, 6, 'rgba(18, 32, 34, .9)', '#527165');
-    ctx.fillStyle = '#c8f0d5'; ctx.font = '14px "Space Grotesk", sans-serif'; ctx.textAlign = 'center'; ctx.fillText('Bonus phase! Find the exit.', width / 2, 51);
+    ctx.fillStyle = '#c8f0d5'; ctx.font = '14px "Space Grotesk", sans-serif'; ctx.textAlign = 'center'; ctx.fillText('Collapse! Return to the start.', width / 2, 51);
   }
-  if (state.mode === 'collect' || state.mode === 'bonus') {
+  if (state.mode === 'collect' || state.mode === 'collapse') {
     ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(238, 242, 231, .64)'; ctx.font = '11px "DM Mono", monospace';
     ctx.fillText(`ENDLESS  /  ROUND ${String(state.round).padStart(2, '0')}`, width - 20, 24);
   }
