@@ -1,8 +1,8 @@
-# StormHacks 2026 – Platformer Arena
+# StormHacks 2026 – Updraft
 
-A 2D platformer where clearing the arena triggers a dangerous bonus phase. Collect, risk, escape, upgrade, repeat.
+A playable 2D platformer prototype where clearing the arena triggers a dangerous bonus phase. Collect, risk, escape, upgrade, repeat.
 
-> Status: concept / prototype planning. Theme: TBD (the hackathon topic is free).
+> Status: playable browser prototype. The single arena layout repeats so the collect-and-escape loop and in-run upgrade choices can be tested.
 
 ## Core Loop
 
@@ -19,6 +19,7 @@ The exit is the key choice: leave safely with what you have, or risk another jum
 - **Shrinking boundary:** a hazard rising from the bottom. It suits platforming, is easy to read, and pushes players upward.
 - **Bonus dot placement:** spread currency dots along several routes so players choose between safe pickups and valuable detours.
 - **Death boundary is always lethal**, even with a shield, so ordinary hazards are clearly distinct from the arena's time limit.
+- **Endless map:** the world streams deterministic platform chunks around the player in both directions. There are no invisible walls; falling below the camera into the void ends the run.
 
 ## Upgrades
 
@@ -30,15 +31,14 @@ The exit is the key choice: leave safely with what you have, or risk another jum
 | Dot magnet | Collects nearby dots |
 | Slow collapse | Delays or slows the shrinking boundary |
 | Last chance | Saves you once per run and returns you to a safe platform |
+| Dot compass | 5 credits; an arrow points to the nearest uncollected dot |
 
 ## Prototype Scope (MVP)
 
-- [ ] One arena
-- [ ] Normal dots
-- [ ] Currency dots (bonus phase)
-- [ ] Rising death zone
-- [ ] Exit
-- [ ] Single-use shield
+- [x] One arena with normal dots and currency dots
+- [x] Rising death zone and exit
+- [x] Single-use shield
+- [x] Currency-funded upgrades
 
 Goal: test whether the collect-and-escape loop is fun before choosing a theme.
 
@@ -50,15 +50,22 @@ Goal: test whether the collect-and-escape loop is fun before choosing a theme.
 
 ## Getting Started
 
-_To be added: setup, build, and run instructions._
+Open `index.html` in a modern browser. No install or build step is required.
 
 ## Controls
 
-_To be added._
+- Move: `A` / `D` or left/right arrows
+- Jump: `W`, `Space`, or up arrow
+- Dash: `Shift` after buying the dash upgrade
+- Dot compass: buy the upgrade at the station; its arrow points toward the nearest uncollected dot
+- Start, retry, or begin another attempt: `Enter`
+- Buy upgrades at the station: click a purchase button or press `1` through `4`
+
+Collect 10 pale dots to begin the bonus phase. Gold dots award credits; reach the lit exit before the rising zone catches you. The shield absorbs one enemy collision per attempt, but does not protect against the zone or falling into the void. Credits carry between attempts. At the upgrade station, buy double jump (8 credits), dash (6 credits), a slower rising zone (10 credits), or the dot compass (5 credits). Purchased upgrades persist; the world streams new chunks as you explore.
 
 ## Roadmap
 
-- [ ] MVP prototype
+- [x] MVP prototype
 - [ ] Remaining upgrades
 - [ ] Multiple arena layouts
 - [ ] Enemy variety and difficulty scaling

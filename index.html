@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10191b">
+  <title>Updraft | StormHacks 2026</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+    :root {
+      color-scheme: dark;
+      --ink: #eef2e7;
+      --muted: #a1ada5;
+      --panel: #172225;
+      --line: #344447;
+      --mint: #9fe3bd;
+      --amber: #ffd16d;
+      --coral: #ff826f;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      padding: 28px 20px 36px;
+      background-color: #10191b;
+      background-image: radial-gradient(ellipse at 50% 0%, #263637 0%, transparent 55%), linear-gradient(#10191b, #111719 70%);
+      color: var(--ink);
+      font-family: "Space Grotesk", "Trebuchet MS", sans-serif;
+    }
+    main { width: min(100%, 1000px); margin: 0 auto; animation: arrive 450ms ease-out both; }
+    header { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
+    .eyebrow, .metric-label, .hint, .footer { font-family: "DM Mono", Consolas, monospace; }
+    .eyebrow { margin: 0 0 5px; color: var(--mint); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(25px, 5vw, 37px); line-height: 1; font-weight: 600; }
+    .header-note { max-width: 290px; margin: 0 0 2px; color: var(--muted); font-size: 13px; text-align: right; }
+    .hud { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; overflow: hidden; border: 1px solid var(--line); border-bottom: 0; border-radius: 7px 7px 0 0; background: var(--line); }
+    .metric { min-height: 62px; padding: 11px 15px; background: var(--panel); }
+    .metric-label { display: block; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+    .metric-value { display: block; margin-top: 3px; font-size: 19px; font-weight: 600; }
+    .metric-value small { color: var(--muted); font-size: 12px; font-weight: 400; }
+    .arena { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 0 0 7px 7px; background: #172427; aspect-ratio: 960 / 600; }
+    canvas { display: block; width: 100%; height: 100%; }
+    .footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 20px; padding: 13px 2px 0; color: var(--muted); font-size: 11px; }
+    .footer strong { color: var(--ink); font-weight: 500; }
+    kbd { padding: 2px 5px; border: 1px solid #506064; border-radius: 3px; color: var(--ink); font: inherit; }
+    @keyframes arrive { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @media (max-width: 600px) {
+      body { padding: 18px 10px 25px; }
+      header { align-items: start; }
+      .header-note { max-width: 145px; font-size: 11px; }
+      .metric { min-height: 55px; padding: 9px 8px; }
+      .metric-label { font-size: 8px; letter-spacing: .5px; }
+      .metric-value { font-size: 16px; }
+      .footer { font-size: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div><p class="eyebrow">StormHacks 2026 · Prototype</p><h1>Updraft</h1></div>
+      <p class="header-note">Clear the arena. Take the bonus. Get out before the floor catches up.</p>
+    </header>
+    <section class="hud" aria-label="Arena status">
+      <div class="metric"><span class="metric-label">Phase</span><span class="metric-value" id="phase">Ready</span></div>
+      <div class="metric"><span class="metric-label">Dots</span><span class="metric-value" id="dots">0 <small>/ 10</small></span></div>
+      <div class="metric"><span class="metric-label">Credits</span><span class="metric-value" id="credits">0</span></div>
+      <div class="metric"><span class="metric-label">Shield</span><span class="metric-value" id="shield">Ready</span></div>
+    </section>
+    <div class="arena"><canvas id="game" width="960" height="600" aria-label="Updraft platform game"></canvas></div>
+    <div class="footer">
+      <span><strong>Move</strong> <kbd>A</kbd> <kbd>D</kbd> / arrows &nbsp; <strong>Jump</strong> <kbd>W</kbd> <kbd>Space</kbd> / ↑</span>
+      <span><strong>Dash</strong> <kbd>Shift</kbd> &nbsp; <strong>Start / continue</strong> <kbd>Enter</kbd></span>
+    </div>
+  </main>
+  <script>
+    (() => {
+      const canvas = document.querySelector('#game');
+      const ctx = canvas.getContext('2d');
+      const phaseNode = document.querySelector('#phase');
+      const dotsNode = document.querySelector('#dots');
+      const creditsNode = document.querySelector('#credits');
+      const shieldNode = document.querySelector('#shield');
+      const W = canvas.width;
+      const H = canvas.height;
+      const CHUNK_WIDTH = 480;
+      const CHUNK_HEIGHT = 80;
+      const platforms = [];
+      const chunks = new Map();
+      const upgrades = [
+        { key: 'doubleJump', title: 'DOUBLE JUMP', detail: 'A second jump in mid-air', cost: 8 },
+        { key: 'dash', title: 'DASH', detail: 'Shift for a burst of speed', cost: 6 },
+        { key: 'slowZone', title: 'SLOW THE RISE', detail: 'Death zone climbs 25% slower', cost: 10 },
+        { key: 'compass', title: 'DOT COMPASS', detail: 'Arrow points to nearest dot', cost: 5 }
+      ];
+      const owned = { doubleJump: false, dash: false, slowZone: false, compass: false };
+      const keys = new Set();
+      let mode = 'ready';
+      let dots = [];
+      let credits = 0;
+      let round = 1;
+      let zoneY = H + 15;
+      let lastTime = 0;
+      let elapsed = 0;
+      let messageTimer = 0;
+      let normalCollected = 0;
+      let normalSpawned = 0;
+      let camera = { x: 0, y: 0 };
+      let player;
+      let enemy;
+      let exit;
+      let shopButtons = [];
+
+      function resetRound() {
+        chunks.clear();
+        platforms.length = 0;
+        dots = [];
+        normalCollected = 0;
+        normalSpawned = 0;
+        player = { x: 48, y: 416, vx: 0, vy: 0, w: 25, h: 34, grounded: false, jumps: 0, invulnerable: 0, dashTime: 0, dashCooldown: 0, facing: 1, shieldUsed: false };
+        camera = { x: player.x - W * 0.35, y: player.y - H * 0.55 };
+        ensureChunks();
+        platforms.push({ x: -80, y: 470, w: 240, h: 16, chunk: 'start' });
+        player.y = 436;
+        enemy = { x: 330, y: 440, w: 31, h: 30, vx: 95 + round * 7, min: 250, max: 510 };
+        exit = null;
+        zoneY = player.y + H + 20;
+        elapsed = 0;
+        mode = 'ready';
+        syncHud();
+      }
+
+      function syncHud() {
+        const labels = { ready: 'Ready', collect: 'Collect', bonus: 'Escape!', shop: 'Upgrade', dead: 'Run over', escaped: 'Cleared' };
+        phaseNode.textContent = labels[mode] || 'Ready';
+        dotsNode.innerHTML = `${normalCollected} <small>/ 10</small>`;
+        creditsNode.textContent = credits;
+        shieldNode.textContent = player && player.shieldUsed ? 'Spent' : 'Ready';
+      }
+
+      function beginRound() {
+        if (mode === 'ready' || mode === 'dead') resetRound();
+        mode = 'collect';
+        syncHud();
+      }
+
+      function jump() {
+        if (mode !== 'collect' && mode !== 'bonus') return;
+        if (player.grounded || (owned.doubleJump && player.jumps < 2)) {
+          player.vy = player.grounded ? -470 : -430;
+          player.grounded = false;
+          player.jumps += 1;
+        }
+      }
+
+      function purchase(index) {
+        const upgrade = upgrades[index];
+        if (!upgrade || mode !== 'shop' || owned[upgrade.key] || credits < upgrade.cost) return;
+        credits -= upgrade.cost;
+        owned[upgrade.key] = true;
+        syncHud();
+      }
+
+      function nextRound() {
+        if (mode !== 'shop') return;
+        round += 1;
+        resetRound();
+        beginRound();
+      }
+
+      function collide(a, b) {
+        return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+      }
+
+      function chunkRandom(cx, salt) {
+        const value = Math.sin(cx * 127.1 + salt * 311.7) * 43758.5453;
+        return value - Math.floor(value);
+      }
+
+      function ensureChunks() {
+        const centerX = Math.floor(player.x / CHUNK_WIDTH);
+        const centerY = Math.floor(player.y / CHUNK_HEIGHT);
+        for (let cx = centerX - 3; cx <= centerX + 4; cx += 1) {
+          for (let cy = centerY - 3; cy <= centerY + 3; cy += 1) {
+            const key = `${cx},${cy}`;
+            if (chunks.has(key)) continue;
+            const generated = [];
+            for (let index = 0; index < 3; index += 1) {
+              const x = cx * CHUNK_WIDTH + 28 + index * 154;
+              const wobble = chunkRandom(cx + cy * 31, index) * 20 - 10;
+              const y = cy * CHUNK_HEIGHT + 48 + wobble;
+              const platform = { x, y, w: 128 + chunkRandom(cx, index + cy) * 28, h: 14, chunk: key };
+              generated.push(platform);
+              if (normalSpawned < 10 && cx >= centerX && cx <= centerX + 2 && cy >= centerY - 2 && cy <= centerY + 2 && (index !== 1 || chunkRandom(cx + cy, 7) > 0.25)) {
+                dots.push({ x: x + platform.w * (0.28 + chunkRandom(cx, index + cy + 4) * 0.45), y: y - 28, type: 'normal', taken: false, chunk: key });
+                normalSpawned += 1;
+              }
+              if (index === 1 && chunkRandom(cx + cy, 13) > 0.35) {
+                generated.push({ x: x + 12, y: y - 54, w: 92, h: 12, chunk: key });
+              }
+            }
+            chunks.set(key, generated);
+            platforms.push(...generated);
+          }
+        }
+        for (const [key] of chunks) {
+          const [cx, cy] = key.split(',').map(Number);
+          if (Math.abs(cx - centerX) > 5 || Math.abs(cy - centerY) > 4) {
+            chunks.delete(key);
+            for (let index = platforms.length - 1; index >= 0; index -= 1) {
+              if (platforms[index].chunk === key) platforms.splice(index, 1);
+            }
+            normalSpawned -= dots.filter(dot => dot.chunk === key && dot.type === 'normal' && !dot.taken).length;
+            dots = dots.filter(dot => dot.chunk !== key || dot.taken);
+          }
+        }
+      }
+
+      function startBonus() {
+        mode = 'bonus';
+        dots = [];
+        ensureChunks();
+        for (let index = 0; index < 10; index += 1) {
+          const targetX = player.x + 120 + index * 88;
+          const target = platforms.filter(platform => Math.abs(platform.x + platform.w / 2 - targetX) < 105 && platform.y < player.y + 40 && platform.y > player.y - 170).sort((a, b) => Math.abs(a.x + a.w / 2 - targetX) - Math.abs(b.x + b.w / 2 - targetX))[0];
+          if (target) dots.push({ x: targetX, y: target.y - 27, type: 'currency', taken: false, chunk: target.chunk });
+        }
+        const exitX = player.x + 470;
+        const exitPlatform = platforms.filter(platform => Math.abs(platform.x + platform.w / 2 - exitX) < 105 && platform.y < player.y + 40 && platform.y > player.y - 180).sort((a, b) => Math.abs(a.x + a.w / 2 - exitX) - Math.abs(b.x + b.w / 2 - exitX))[0];
+        if (exitPlatform) exit = { x: exitPlatform.x + exitPlatform.w - 48, y: exitPlatform.y - 54, w: 42, h: 50 };
+        zoneY = player.y + H * 0.70;
+        messageTimer = 2;
+        syncHud();
+      }
+
+      function update(dt) {
+        if (mode !== 'collect' && mode !== 'bonus') return;
+        elapsed += dt;
+        camera.x += (player.x - W * 0.38 - camera.x) * Math.min(1, dt * 5);
+        camera.y = Math.min(camera.y, player.y - H * 0.55);
+        ensureChunks();
+        player.invulnerable = Math.max(0, player.invulnerable - dt);
+        player.dashCooldown = Math.max(0, player.dashCooldown - dt);
+        player.dashTime = Math.max(0, player.dashTime - dt);
+
+        const left = keys.has('ArrowLeft') || keys.has('KeyA');
+        const right = keys.has('ArrowRight') || keys.has('KeyD');
+        const direction = (right ? 1 : 0) - (left ? 1 : 0);
+        if (direction) player.facing = direction;
+        const speed = player.dashTime > 0 ? 530 : 225;
+        player.vx = direction * speed;
+        if (player.dashTime <= 0) player.vy += 1120 * dt;
+        player.x += player.vx * dt;
+        player.y += player.vy * dt;
+
+        player.grounded = false;
+        for (const platform of platforms) {
+          const crossedTop = player.y + player.h >= platform.y && player.y + player.h - player.vy * dt <= platform.y;
+          const overlaps = player.x + player.w > platform.x && player.x < platform.x + platform.w;
+          if (player.vy >= 0 && crossedTop && overlaps) {
+            player.y = platform.y - player.h;
+            player.vy = 0;
+            player.grounded = true;
+            player.jumps = 0;
+          }
+        }
+        if (player.y > camera.y + H + 40 || (mode === 'bonus' && player.y + player.h >= zoneY)) {
+          mode = 'dead';
+          syncHud();
+          return;
+        }
+
+        enemy.x += enemy.vx * dt;
+        if (enemy.x < enemy.min || enemy.x + enemy.w > enemy.max) enemy.vx *= -1;
+        if (collide(player, enemy) && player.invulnerable === 0) {
+          if (!player.shieldUsed) {
+            player.shieldUsed = true;
+            player.invulnerable = 1.1;
+            player.vy = -310;
+            player.vx = player.x < enemy.x ? -180 : 180;
+            messageTimer = 1.1;
+          } else {
+            mode = 'dead';
+            syncHud();
+            return;
+          }
+        }
+
+        for (const dot of dots) {
+          if (dot.taken) continue;
+          const dx = player.x + player.w / 2 - dot.x;
+          const dy = player.y + player.h / 2 - dot.y;
+          if (dx * dx + dy * dy < 24 * 24) {
+            dot.taken = true;
+            if (dot.type === 'currency') credits += 1;
+            else normalCollected += 1;
+          }
+        }
+
+        if (mode === 'collect' && normalCollected >= 10) startBonus();
+        if (mode === 'bonus') {
+          zoneY -= (27 + round * 2) * (owned.slowZone ? 0.75 : 1) * dt;
+          if (exit && collide(player, exit)) {
+            mode = 'shop';
+            syncHud();
+          }
+          if (player.y + player.h >= zoneY) {
+            mode = 'dead';
+            syncHud();
+          }
+        }
+        messageTimer = Math.max(0, messageTimer - dt);
+        syncHud();
+      }
+
+      function roundedRect(x, y, w, h, r, fill, stroke) {
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, r);
+        ctx.fillStyle = fill;
+        ctx.fill();
+        if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke(); }
+      }
+
+      function drawBackground() {
+        const gradient = ctx.createLinearGradient(0, 0, 0, H);
+        gradient.addColorStop(0, '#1b3032');
+        gradient.addColorStop(1, '#162326');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, W, H);
+        ctx.strokeStyle = 'rgba(178, 211, 190, 0.055)';
+        ctx.lineWidth = 1;
+        for (let x = 30; x < W; x += 48) {
+          for (let y = 24; y < H; y += 48) {
+            ctx.beginPath(); ctx.arc(x, y, 1.2, 0, Math.PI * 2); ctx.stroke();
+          }
+        }
+        ctx.fillStyle = 'rgba(159, 227, 189, .05)';
+        ctx.beginPath(); ctx.arc(180, 150, 115, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(760, 230, 160, 0, Math.PI * 2); ctx.fill();
+      }
+
+      function draw() {
+        drawBackground();
+        ctx.save();
+        ctx.translate(-camera.x, -camera.y);
+        for (const platform of platforms) {
+          ctx.fillStyle = '#34484a';
+          ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
+          ctx.fillStyle = '#86b69a';
+          ctx.fillRect(platform.x, platform.y, platform.w, 3);
+        }
+        for (const dot of dots) {
+          if (dot.taken) continue;
+          const isCurrency = dot.type === 'currency';
+          ctx.beginPath();
+          ctx.fillStyle = isCurrency ? '#ffd16d' : '#d7f2de';
+          ctx.shadowColor = isCurrency ? '#ffd16d' : '#d7f2de';
+          ctx.shadowBlur = 13;
+          ctx.arc(dot.x, dot.y, isCurrency ? 6 : 5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.beginPath(); ctx.fillStyle = isCurrency ? '#fff0bb' : '#ffffff'; ctx.arc(dot.x - 1, dot.y - 1, 1.6, 0, Math.PI * 2); ctx.fill();
+        }
+
+        if (exit && (mode === 'bonus' || mode === 'shop')) {
+          const pulse = 0.6 + Math.sin(elapsed * 4) * 0.12;
+          ctx.globalAlpha = pulse;
+          roundedRect(exit.x, exit.y, exit.w, exit.h, 5, '#143f3a', '#9fe3bd');
+          ctx.fillStyle = '#b8f1cb';
+          ctx.fillRect(exit.x + 8, exit.y + 8, 26, 3);
+          ctx.fillRect(exit.x + 8, exit.y + 8, 3, 33);
+          ctx.fillRect(exit.x + 31, exit.y + 8, 3, 33);
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = '#c5d4cd'; ctx.font = '11px "DM Mono", monospace'; ctx.textAlign = 'center'; ctx.fillText('EXIT', exit.x + exit.w / 2, exit.y - 8);
+        }
+
+        if (mode === 'bonus') {
+          ctx.fillStyle = 'rgba(245, 84, 66, .80)';
+          ctx.fillRect(camera.x, zoneY, W, H);
+          ctx.fillStyle = '#ff826f'; ctx.fillRect(camera.x, zoneY - 4, W, 4);
+          ctx.fillStyle = 'rgba(255, 130, 111, .13)'; ctx.fillRect(camera.x, zoneY - 20, W, 16);
+          ctx.fillStyle = '#ffad9f'; ctx.font = '11px "DM Mono", monospace'; ctx.textAlign = 'left'; ctx.fillText('DEATH ZONE', camera.x + 18, Math.max(camera.y + 18, zoneY - 12));
+        }
+
+        roundedRect(enemy.x, enemy.y, enemy.w, enemy.h, 6, '#e87965');
+        ctx.fillStyle = '#381f21'; ctx.fillRect(enemy.x + 7, enemy.y + 9, 4, 4); ctx.fillRect(enemy.x + 20, enemy.y + 9, 4, 4);
+        ctx.fillStyle = '#ffc0a7'; ctx.fillRect(enemy.x + 10, enemy.y + 21, 11, 2);
+
+        if (player) {
+          const blink = player.invulnerable > 0 && Math.floor(elapsed * 16) % 2 === 0;
+          if (!blink) {
+            if (!player.shieldUsed) {
+              ctx.beginPath(); ctx.strokeStyle = 'rgba(159, 227, 189, .75)'; ctx.lineWidth = 2;
+              ctx.arc(player.x + player.w / 2, player.y + player.h / 2, 22, 0, Math.PI * 2); ctx.stroke();
+            }
+            roundedRect(player.x, player.y, player.w, player.h, 7, '#b7edc8');
+            ctx.fillStyle = '#203b32'; ctx.fillRect(player.x + (player.facing > 0 ? 15 : 5), player.y + 10, 4, 4);
+            ctx.fillStyle = '#6daf88'; ctx.fillRect(player.x + 4, player.y + 27, 7, 5); ctx.fillRect(player.x + 15, player.y + 27, 7, 5);
+          }
+        }
+
+        ctx.restore();
+        if (owned.compass && (mode === 'collect' || mode === 'bonus')) drawCompass();
+        if (mode === 'ready') drawOverlay('UPDRAFT', 'Collect every pale dot to open the bonus phase.', 'Press ENTER to drop in');
+        if (mode === 'dead') drawOverlay('RUN ENDED', 'The death zone is lethal. The shield only stops the enemy.', `Credits banked: ${credits}  ·  Press ENTER to retry`);
+        if (mode === 'escaped') drawOverlay('ARENA CLEARED', 'The exit is yours. Spend your credits on upgrades.', 'Press ENTER to continue');
+        if (mode === 'shop') drawShop();
+        if (messageTimer > 0 && mode === 'bonus') {
+          roundedRect(336, 24, 288, 42, 6, 'rgba(18, 32, 34, .9)', '#527165');
+          ctx.fillStyle = '#c8f0d5'; ctx.font = '14px "Space Grotesk", sans-serif'; ctx.textAlign = 'center'; ctx.fillText('Bonus phase! Find the exit.', W / 2, 51);
+        }
+        if (mode === 'collect' || mode === 'bonus') {
+          ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(238, 242, 231, .64)'; ctx.font = '11px "DM Mono", monospace'; ctx.fillText(`ENDLESS  /  ROUND ${String(round).padStart(2, '0')}`, 940, 24);
+        }
+      }
+
+      function drawCompass() {
+        const target = dots.filter(dot => !dot.taken).sort((a, b) => {
+          const da = (a.x - player.x) ** 2 + (a.y - player.y) ** 2;
+          const db = (b.x - player.x) ** 2 + (b.y - player.y) ** 2;
+          return da - db;
+        })[0];
+        if (!target) return;
+        const angle = Math.atan2(target.y - player.y, target.x - player.x);
+        ctx.save();
+        ctx.translate(W / 2, 42);
+        ctx.rotate(angle + Math.PI / 2);
+        ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(8, 8); ctx.lineTo(0, 4); ctx.lineTo(-8, 8); ctx.closePath();
+        ctx.fillStyle = target.type === 'currency' ? '#ffd16d' : '#9fe3bd'; ctx.fill();
+        ctx.restore();
+        ctx.textAlign = 'center'; ctx.fillStyle = '#d0dbd2'; ctx.font = '10px "DM Mono", monospace'; ctx.fillText('NEAREST DOT', W / 2, 66);
+      }
+
+      function drawOverlay(title, copy, prompt) {
+        ctx.fillStyle = 'rgba(10, 18, 20, .70)'; ctx.fillRect(0, 0, W, H);
+        roundedRect(216, 202, 528, 196, 8, 'rgba(23, 34, 37, .97)', '#526760');
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#a5e7bd'; ctx.font = '500 12px "DM Mono", monospace'; ctx.fillText('STORMHACKS 2026  /  ARENA PROTOTYPE', W / 2, 247);
+        ctx.fillStyle = '#eef2e7'; ctx.font = '600 38px "Space Grotesk", sans-serif'; ctx.fillText(title, W / 2, 296);
+        ctx.fillStyle = '#b4c0b8'; ctx.font = '15px "Space Grotesk", sans-serif'; ctx.fillText(copy, W / 2, 330);
+        ctx.fillStyle = '#ffd16d'; ctx.font = '500 13px "DM Mono", monospace'; ctx.fillText(prompt, W / 2, 368);
+      }
+
+      function drawShop() {
+        ctx.fillStyle = 'rgba(10, 18, 20, .78)'; ctx.fillRect(0, 0, W, H);
+        roundedRect(104, 74, 752, 452, 8, '#172427', '#526760');
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#9fe3bd'; ctx.font = '500 11px "DM Mono", monospace'; ctx.fillText(`ROUND ${String(round).padStart(2, '0')} COMPLETE`, 136, 116);
+        ctx.fillStyle = '#eef2e7'; ctx.font = '600 32px "Space Grotesk", sans-serif'; ctx.fillText('Upgrade station', 136, 155);
+        ctx.fillStyle = '#a1ada5'; ctx.font = '14px "Space Grotesk", sans-serif'; ctx.fillText(`${credits} credits available · upgrades persist between attempts`, 136, 181);
+        shopButtons = [];
+        upgrades.forEach((upgrade, index) => {
+          const x = 126 + index * 178;
+          const y = 218;
+          const bought = owned[upgrade.key];
+          const affordable = credits >= upgrade.cost;
+          const stroke = bought ? '#9fe3bd' : (affordable ? '#647a70' : '#3b4b4d');
+          roundedRect(x, y, 160, 174, 6, bought ? '#213b33' : '#1d2b2e', stroke);
+          ctx.fillStyle = bought ? '#9fe3bd' : (affordable ? '#ffd16d' : '#87958e');
+          ctx.font = '500 11px "DM Mono", monospace'; ctx.fillText(bought ? 'OWNED' : `${upgrade.cost} CREDITS`, x + 16, y + 27);
+          ctx.fillStyle = '#eef2e7'; ctx.font = '600 17px "Space Grotesk", sans-serif'; ctx.fillText(upgrade.title, x + 16, y + 59);
+          ctx.fillStyle = '#a1ada5'; ctx.font = '13px "Space Grotesk", sans-serif';
+          wrapText(upgrade.detail, x + 14, y + 88, 132, 18);
+          roundedRect(x + 10, y + 126, 140, 32, 4, bought ? '#28493a' : (affordable ? '#365c49' : '#2a3739'));
+          ctx.textAlign = 'center'; ctx.fillStyle = bought ? '#b8f1cb' : '#eef2e7'; ctx.font = '500 12px "DM Mono", monospace';
+          ctx.fillText(bought ? 'PURCHASED' : (affordable ? 'BUY' : 'NOT ENOUGH'), x + 80, y + 147);
+          ctx.textAlign = 'left';
+          shopButtons.push({ x: x + 10, y: y + 126, w: 140, h: 32, index });
+        });
+        roundedRect(136, 430, 688, 62, '#1c302b', '#58715f');
+        ctx.fillStyle = '#c6ead0'; ctx.font = '14px "Space Grotesk", sans-serif'; ctx.fillText('Ready for another run?', 157, 455);
+        ctx.fillStyle = '#a1ada5'; ctx.font = '12px "DM Mono", monospace'; ctx.fillText('PRESS ENTER  ·  REPLAY THE ARENA', 157, 477);
+        ctx.textAlign = 'right'; ctx.fillStyle = '#ffd16d'; ctx.font = '500 13px "DM Mono", monospace'; ctx.fillText(`${credits} CREDITS`, 801, 467);
+      }
+
+      function wrapText(text, x, y, maxWidth, lineHeight) {
+        const words = text.split(' ');
+        let line = '';
+        for (const word of words) {
+          const next = line ? `${line} ${word}` : word;
+          if (ctx.measureText(next).width > maxWidth && line) {
+            ctx.fillText(line, x, y); line = word; y += lineHeight;
+          } else line = next;
+        }
+        ctx.fillText(line, x, y);
+      }
+
+      function frame(time) {
+        const dt = Math.min((time - lastTime) / 1000 || 0, 0.033);
+        lastTime = time;
+        update(dt);
+        draw();
+        requestAnimationFrame(frame);
+      }
+
+      window.addEventListener('keydown', event => {
+        const code = event.code;
+        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'Space'].includes(code)) event.preventDefault();
+        keys.add(code);
+        if (['Space', 'ArrowUp', 'KeyW'].includes(code) && !event.repeat) jump();
+        if (code === 'Enter' && !event.repeat) {
+          if (mode === 'shop') nextRound();
+          else if (mode === 'ready' || mode === 'dead') beginRound();
+        }
+        if (code === 'Digit1') purchase(0);
+        if (code === 'Digit2') purchase(1);
+        if (code === 'Digit3') purchase(2);
+        if (code === 'Digit4') purchase(3);
+        if (code === 'ShiftLeft' && owned.dash && player.dashCooldown <= 0 && (mode === 'collect' || mode === 'bonus')) {
+          player.dashTime = 0.18; player.dashCooldown = 1.1; player.vy = 0;
+        }
+      });
+      window.addEventListener('keyup', event => keys.delete(event.code));
+      canvas.addEventListener('pointerdown', event => {
+        if (mode !== 'shop') return;
+        const rect = canvas.getBoundingClientRect();
+        const x = (event.clientX - rect.left) * W / rect.width;
+        const y = (event.clientY - rect.top) * H / rect.height;
+        const button = shopButtons.find(item => x >= item.x && x <= item.x + item.w && y >= item.y && y <= item.y + item.h);
+        if (button) purchase(button.index);
+      });
+
+      resetRound();
+      requestAnimationFrame(frame);
+    })();
+  </script>
+</body>
+</html>
