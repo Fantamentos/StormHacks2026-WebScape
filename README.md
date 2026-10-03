@@ -2,7 +2,7 @@
 
 A playable 2D platformer prototype where clearing the arena triggers a dangerous bonus phase. Collect, risk, escape, upgrade, repeat.
 
-> Status: playable browser prototype. The single arena layout repeats so the collect-and-escape loop and in-run upgrade choices can be tested.
+> Status: playable JavaScript prototype, served and built with Vite.
 
 ## Core Loop
 
@@ -50,7 +50,14 @@ Goal: test whether the collect-and-escape loop is fun before choosing a theme.
 
 ## Getting Started
 
-Open `index.html` in a modern browser. No install or build step is required.
+Install dependencies and start the Vite development server:
+
+```sh
+npm install
+npm run dev
+```
+
+Vite enables hot reload while developing. Create a production bundle with `npm run build`, or serve that bundle locally with `npm run preview`.
 
 ## Controls
 

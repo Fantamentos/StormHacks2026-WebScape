@@ -38,6 +38,37 @@ Preparing the frontend now:
 Suggested order: guest play -> local save -> optional login with cloud save and achievements. Do authentication last.
 
 
+MULTIPLAYER (up to 4 players)
+=============================
+
+Needs a backend: browsers can't connect to each other reliably without a server for rooms and message relay.
+
+Design questions to decide first:
+- Co-op (shared arena, shared dots/credits) vs. competitive (race for dots and the exit) vs. both.
+- Shared or per-player rising death zone; what happens when one player dies (spectate, respawn, run ends for all).
+- Shared or per-player upgrades and credits.
+
+Tech options:
+- WebSockets (Node.js + ws or Socket.IO): simple rooms with a join code; fits a small game.
+- Colyseus (Node.js): room-based multiplayer framework with state sync built in.
+- Supabase Realtime / Firebase Realtime Database: no custom server, but higher latency and less control.
+- WebRTC peer-to-peer: lower latency, but needs signalling and NAT handling; more complex.
+- Recommendation: Socket.IO or Colyseus with rooms of up to 4 players.
+
+Architecture notes:
+- Server-authoritative: the server owns the shared world state (dots, death zone, exit, enemies); clients send inputs and render updates.
+- Use the deterministic chunk generator with a shared seed so every client builds the same map.
+- Send inputs and periodic state snapshots; interpolate remote players on the client to hide latency.
+- Handle disconnects, late joins and room cleanup.
+
+Preparing now:
+- Replace Math.sin-based chunkRandom with a seedable random generator.
+- Keep game rules in modules that can run without the canvas, so the same code can run on a server.
+- Keep player state as an object per player (not globals) so more than one can exist.
+
+Suggested order: single-player stable -> seeded world and per-player state -> local 2-player test -> online rooms with 2 players -> up to 4.
+
+
 PHASER 3 MIGRATION (when the game outgrows plain JS)
 ====================================================
 
