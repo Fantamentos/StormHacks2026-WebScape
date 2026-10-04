@@ -14,12 +14,12 @@ TODO
 - [x] Generate a finite platform graph for each level, with the map size/depth based on the level number
 - [x] Use the start as the root with four main branches; give later nodes at most two children, assign each node a unique ID, and decrease remaining depth by one per generation until level 1
 - [x] Use BFS from the start to identify platform distance/parent routes; collapse the outermost (greatest-distance) platforms first while preserving a jumpable route back to the start
-- [ ] Give the first child on each of the start's four branches exactly two continuing children, so each branch spreads into two routes
-- [ ] Tune platform spacing edge-to-edge: make drop-through gaps wider than the player (try 36-48 px first), while keeping intended jumps within the player's tested range
-- [ ] Reject or reposition generated platforms that overlap existing platforms or violate minimum clearance
-- [ ] Validate routes using actual movement physics, not only parent-child links: every platform must be reachable from the start and have a route back before collapse
-- [ ] Include incidental platforms in reachability checks; accept a platform between two others only if the resulting layout remains traversable
-- [ ] Limit placement retries and fall back to a known-good layout if a valid position cannot be found
+- [x] Give the first child on each of the start's four branches exactly two continuing children, so each branch spreads into two routes
+- [x] Tune platform spacing edge-to-edge: make drop-through gaps wider than the player (try 36-48 px first), while keeping intended jumps within the player's tested range
+- [x] Reject or reposition generated platforms that overlap existing platforms or violate minimum clearance
+- [x] Validate routes using actual movement physics, not only parent-child links: every platform must be reachable from the start and have a route back before collapse
+- [x] Include incidental platforms in reachability checks; accept a platform between two others only if the resulting layout remains traversable
+- [x] Limit placement retries and fall back to a known-good layout if a valid position cannot be found
 - [x] After reaching the start/exit, generate the next level and repeat; the run continues through levels until death
 - [ ] Rework the "Slow the rise" upgrade (currently does nothing) into a collapse-related effect, e.g. longer warning time
 - [ ] Enemies: redesign for the collapse (patrol bound to a platform, removed with it); currently one fixed-range enemy

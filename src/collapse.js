@@ -9,7 +9,7 @@ export function startCollapseWaves(state) {
 
 function pickWave(state) {
   const activeIds = new Set(state.platforms.map(platform => platform.id));
-  const candidates = state.platforms.filter(platform => platform !== state.exitPlatform && platform.childIds.every(childId => !activeIds.has(childId)));
+  const candidates = state.platforms.filter(platform => platform !== state.exitPlatform && platform.routeChildIds.every(childId => !activeIds.has(childId)));
   if (!candidates.length) return null;
   candidates.sort((a, b) => b.distance - a.distance);
   return candidates.slice(0, Math.max(MIN_WAVE_SIZE, Math.ceil(candidates.length * WAVE_FRACTION)));
