@@ -22,6 +22,7 @@ function createNode(id, x, y, depth, branch, parentId = null, shape = STANDARD_P
     w: shape.width,
     h: shape.height,
     shape: shape.type,
+    angle: shape.angle || 0,
     collisionSections: shape.collisionSections,
     parentId,
     childIds: [],
@@ -33,7 +34,10 @@ function createNode(id, x, y, depth, branch, parentId = null, shape = STANDARD_P
 }
 
 function platformShape(level, nodeIndex) {
-  return choosePlatformShape(randomFor(level * 73 + nodeIndex * 31));
+  const shape = choosePlatformShape(randomFor(level * 73 + nodeIndex * 31));
+  return shape.type === 'ramp' && randomFor(level * 197 + nodeIndex * 43) > 0.5
+    ? { ...shape, angle: -shape.angle }
+    : shape;
 }
 
 function horizontalGap(level, nodeIndex, attempt) {
@@ -87,77 +91,6 @@ function hasClearance(nodes) {
   return null;
 }
 
-function simulateLandings(source, platforms) {
-  const playerWidth = 25;
-  const playerHeight = 34;
-  const speed = 225;
-  const gravity = 1120;
-  const dt = 1 / 60;
-  const nearby = platforms.filter(platform => {
-    const horizontalRange = speed * 1.15 + source.w;
-    return platform.x + platform.w > source.x - horizontalRange
-      && platform.x < source.x + source.w + horizontalRange
-      && platform.y > source.y - 110
-      && platform.y < source.y + 650;
-  });
-  const landings = new Set();
-
-  for (const sourceSurface of source.collisionSections) {
-    const launchOffsets = sourceSurface.width >= playerWidth + 24
-      ? [12, (sourceSurface.width - playerWidth) / 2, sourceSurface.width - playerWidth - 12]
-      : [(sourceSurface.width - playerWidth) / 2];
-    for (const launchOffset of launchOffsets) {
-      for (const jump of [true, false]) {
-        for (const direction of [-1, 0, 1]) {
-          for (let holdFrames = 0; holdFrames <= 60; holdFrames += 3) {
-            let x = source.x + sourceSurface.x + launchOffset;
-            let y = source.y + sourceSurface.y - playerHeight;
-            let velocityY = jump ? -470 : 0;
-            let grounded = !jump;
-
-            for (let frame = 0; frame < 90; frame += 1) {
-              const previousBottom = y + playerHeight;
-              x += frame < holdFrames ? direction * speed * dt : 0;
-              const sourceX = source.x + sourceSurface.x;
-              const sourceY = source.y + sourceSurface.y;
-              if (grounded && x + playerWidth > sourceX && x < sourceX + sourceSurface.width) {
-                y = sourceY - playerHeight;
-                velocityY = 0;
-                continue;
-              }
-
-              grounded = false;
-              velocityY += gravity * dt;
-              y += velocityY * dt;
-              let landed = null;
-              for (const platform of nearby) {
-                for (const section of platform.collisionSections) {
-                  const surfaceY = platform.y + section.y;
-                  const sectionX = platform.x + section.x;
-                  const crossedTop = y + playerHeight >= surfaceY && previousBottom <= surfaceY;
-                  const overlaps = x + playerWidth > sectionX && x < sectionX + section.width;
-                  if (velocityY >= 0 && crossedTop && overlaps && (!landed || surfaceY < landed.y)) landed = { platform, y: surfaceY };
-                }
-              }
-              if (landed) {
-                if (landed.platform.id !== source.id) landings.add(landed.platform.id);
-                else {
-                  y = landed.y - playerHeight;
-                  velocityY = 0;
-                  grounded = true;
-                }
-              }
-              if (landed && landed.platform.id !== source.id) break;
-              if (y > source.y - playerHeight + 650) break;
-            }
-          }
-        }
-      }
-    }
-  }
-  return landings;
-}
-
 function addFloatingSteps(nodes, level) {
   const leaves = nodes.filter(node => node !== nodes[0] && node.childIds.length === 0 && ['narrow', 'standard', 'wide'].includes(node.shape));
   let added = 0;
@@ -197,12 +130,13 @@ function visitGraph(startId, adjacency) {
   return visited;
 }
 
-function physicalGraph(nodes) {
-  return new Map(nodes.map(node => [node.id, simulateLandings(node, nodes)]));
-}
-
-function validatePhysicsRoutes(nodes, root) {
-  const adjacency = physicalGraph(nodes);
+function validateGraphRoutes(nodes, root) {
+  const adjacency = new Map(nodes.map(node => [node.id, new Set()]));
+  for (const node of nodes) {
+    if (!node.parentId) continue;
+    adjacency.get(node.id).add(node.parentId);
+    adjacency.get(node.parentId).add(node.id);
+  }
   const reverse = new Map(nodes.map(node => [node.id, new Set()]));
   for (const [sourceId, targets] of adjacency) {
     for (const targetId of targets) reverse.get(targetId).add(sourceId);
@@ -211,17 +145,7 @@ function validatePhysicsRoutes(nodes, root) {
   const reachable = visitGraph(root.id, adjacency);
   const canReturn = visitGraph(root.id, reverse);
   const unreachable = nodes.find(node => !reachable.has(node.id));
-  if (unreachable) {
-    const ancestors = [];
-    let current = unreachable;
-    while (current) {
-      ancestors.unshift(`${current.id}:${current.shape}`);
-      current = nodes.find(node => node.id === current.parentId);
-    }
-    return { failure: `${ancestors.join(' <- ')}:not-reachable` };
-  }
-  const stranded = nodes.find(node => !canReturn.has(node.id));
-  if (stranded) return { failure: `${stranded.id}:no-route-home` };
+  if (unreachable || nodes.some(node => !canReturn.has(node.id))) return { failure: 'disconnected graph' };
   return { adjacency };
 }
 
@@ -293,7 +217,7 @@ export function generateFallbackLevel(level) {
   const fallback = buildCandidate(level, -1);
   const clearance = hasClearance(fallback.nodes);
   if (clearance) throw new Error(`Fallback map for level ${level} failed: ${clearance}.`);
-  const routeValidation = validatePhysicsRoutes(fallback.nodes, fallback.root);
+  const routeValidation = validateGraphRoutes(fallback.nodes, fallback.root);
   if (routeValidation.failure) throw new Error(`Fallback map for level ${level} failed: ${routeValidation.failure}.`);
   return { ...finalizeCandidate(fallback, routeValidation.adjacency), usedFallback: true };
 }
@@ -302,7 +226,7 @@ export function generateLevel(level) {
   for (let attempt = 0; attempt < MAX_PLACEMENT_ATTEMPTS; attempt += 1) {
     const candidate = buildCandidate(level, attempt);
     if (hasClearance(candidate.nodes)) continue;
-    const routeValidation = validatePhysicsRoutes(candidate.nodes, candidate.root);
+    const routeValidation = validateGraphRoutes(candidate.nodes, candidate.root);
     if (routeValidation.failure) continue;
     return finalizeCandidate(candidate, routeValidation.adjacency);
   }

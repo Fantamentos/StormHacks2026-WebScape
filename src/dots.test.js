@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { collectNearbyDots, createPlatformDots, nearestUncollectedDot } from './dots.js';
+import { createPlatformDots, nearestUncollectedDot, rewardDot } from './dots.js';
 
 test('each platform receives three uniquely identified dots of the requested type', () => {
   const platforms = [
@@ -19,15 +19,16 @@ test('each platform receives three uniquely identified dots of the requested typ
   assert.deepEqual(dots.slice(0, 3).map(dot => dot.x), [31, 62, 93]);
 });
 
-test('a nearby dot grants a collectible only once', () => {
+test('a Matter dot contact grants its reward only once', () => {
   const platform = { id: 'platform', x: 0, y: 120, w: 124 };
-  const dots = createPlatformDots([platform], 'currency');
-  const target = dots[1];
-  const player = { x: target.x - 12.5, y: target.y - 17, w: 25, h: 34 };
+  const dot = createPlatformDots([platform], 'currency')[1];
+  const state = { credits: 0, currencyCollected: 0, normalCollected: 0 };
 
-  assert.deepEqual(collectNearbyDots(player, dots), [target]);
-  assert.deepEqual(collectNearbyDots(player, dots), []);
-  assert.equal(target.taken, true);
+  assert.equal(rewardDot(state, dot), true);
+  assert.equal(rewardDot(state, dot), false);
+  assert.equal(dot.taken, true);
+  assert.equal(state.credits, 1);
+  assert.equal(state.currencyCollected, 1);
 });
 
 test('compass target is the nearest uncollected dot', () => {

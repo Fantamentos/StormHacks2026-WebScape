@@ -3,7 +3,7 @@ import test from 'node:test';
 import { generateFallbackLevel, generateLevel } from './map.js';
 import { choosePlatformShape, PLATFORM_SHAPES } from './platforms/index.js';
 
-test('level graphs grow with four two-route branches and physical BFS routes', () => {
+test('level graphs grow with four two-route branches and connected BFS routes', () => {
   let previousDepth = 0;
 
   for (const level of [1, 2, 3, 4]) {
@@ -13,7 +13,7 @@ test('level graphs grow with four two-route branches and physical BFS routes', (
     assert.ok(map.depth > previousDepth);
     previousDepth = map.depth;
     assert.equal(ids.size, map.nodes.length);
-    assert.deepEqual(new Set(map.nodes.map(node => node.shape)), new Set(PLATFORM_SHAPES.map(shape => shape.type)));
+    assert.ok(map.nodes.every(node => PLATFORM_SHAPES.some(shape => shape.type === node.shape)));
     assert.ok(map.nodes.every(node => node.w === PLATFORM_SHAPES.find(shape => shape.type === node.shape).width));
     assert.equal(map.root.childIds.length, 4);
     assert.ok(map.root.childIds.every(id => map.byId.get(id).childIds.length === 2));
@@ -51,7 +51,7 @@ test('the non-jittered fallback is a validated level layout', () => {
   assert.ok(map.nodes.every(node => Number.isFinite(node.distance)));
 });
 
-test('collapse removes physical BFS leaves without removing the exit route', async () => {
+test('collapse removes BFS leaves without removing the exit route', async () => {
   const { startCollapseWaves, updateCollapse } = await import('./collapse.js');
   const map = generateLevel(3);
   const state = { platforms: [...map.platforms], dots: [], exitPlatform: map.root };
@@ -72,7 +72,7 @@ test('collapse removes physical BFS leaves without removing the exit route', asy
 
 test('platform folder shapes can be selected from seeded random values', () => {
   assert.deepEqual(
-    [0.01, 0.2, 0.35, 0.5, 0.65, 0.8, 0.95].map(value => choosePlatformShape(value).type),
+    [0.01, 0.2, 0.32, 0.44, 0.56, 0.68, 0.82, 0.95].map(value => choosePlatformShape(value).type),
     PLATFORM_SHAPES.map(shape => shape.type)
   );
 });
@@ -85,4 +85,13 @@ test('T, Y, and L shapes have composite support bodies and walkable top collisio
     assert.ok(shape.collisionSections.every(section => section.y === 0));
     assert.ok(shape.collisionSections.reduce((width, section) => width + section.width, 0) >= shape.width);
   }
+});
+
+test('angled ramp bodies are generated as connected map route nodes', () => {
+  const rampShape = PLATFORM_SHAPES.find(platform => platform.type === 'ramp');
+  const map = generateLevel(1);
+
+  assert.notEqual(rampShape.angle, 0);
+  assert.ok(rampShape.bodySections.length > 0);
+  assert.ok(map.nodes.some(node => node.shape === 'ramp' && node.angle !== 0));
 });

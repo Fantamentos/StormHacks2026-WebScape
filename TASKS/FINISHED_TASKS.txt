@@ -1,0 +1,42 @@
+FINISHED TASKS
+==============
+
+- [x] Finite map: generate a connected platform graph for each level, with size based on level depth
+- [x] Randomly choose narrow (96 px), standard (124 px), or wide (156 px) flat-top definitions from src/platforms/ during map generation
+- [x] Dot compass: purchasable upgrade points to the nearest uncollected dot
+- [x] Redesign compass arrow to stay constantly visible on a circle around the player and point straight toward the nearest dot; no blinking or other effects
+- [x] Add Vite (dev server, hot reload, production build)
+- [x] Split the Phaser game into scene, rendering, map, and upgrade modules
+- [x] Keep adding features in plain JavaScript for now
+- [x] Camera centered on the player on both axes; player can descend freely
+- [x] Void fall death: die after falling 650 px below the last Matter platform contact (VOID_DEATH_DEPTH in scene.js)
+- [x] Bonus phase renamed to Collapse; rising death zone removed
+- [x] Collapse: start platform becomes the exit; farthest platforms blink for 4 s, stay white for 2 s, then vanish in waves (4 s gap), currency dots vanish with their platforms
+- [x] Collapse warning: each platform blinks four times at 1 Hz (4 s), stays solid white for 2 s, then disappears (6 s total)
+- [x] Draw the start platform red before collapse; turn it green when collapse begins
+- [x] Generate a finite platform graph for each level, with the map size/depth based on the level number
+- [x] Use the start as the root with four main branches; give later nodes at most two children, assign each node a unique ID, and decrease remaining depth by one per generation until level 1
+- [x] Use BFS from the start to identify platform distance/parent routes; collapse the outermost (greatest-distance) platforms first while preserving a jumpable route back to the start
+- [x] Add static T, Y, and L platforms using composite support silhouettes and continuous collision tops, keeping each shape as one map node
+- [x] Add small floating step platforms as optional connectors; include them in reachability checks and collapse behavior
+- [x] Generate angled ramp platform nodes with Matter collision bodies
+- [x] Migrate the game to Phaser 3 with Matter Physics for sloped and composite platform collision
+- [x] Replace custom player movement, gravity, and platform collision with Phaser Matter Physics while keeping game-specific controls such as jumping and dashing
+- [x] Port each platform shape (flat, T/Y/L, steps, and ramps) to suitable Phaser Matter collision bodies
+- [x] Give the first child on each of the start's four branches exactly two continuing children, so each branch spreads into two routes
+- [x] Tune platform spacing edge-to-edge: make drop-through gaps wider than the player (try 36-48 px first), while keeping intended jumps within the player's tested range
+- [x] Reject or reposition generated platforms that overlap existing platforms or violate minimum clearance
+- [x] Validate generated graph connectivity with BFS; Phaser Matter now owns live movement and collisions
+- [x] Include optional step platforms in generated graph and collapse route checks
+- [x] Limit placement retries and fall back to a known-good layout if a valid position cannot be found
+- [x] After reaching the start/exit, generate the next level and repeat; the run continues through levels until death
+- [x] Temporarily disable enemies while prototyping dots and collapse; restore/redesign them after the core loop is tuned
+- [x] Spawn 3 normal dots on every platform during collection and 3 currency dots on every platform during collapse; prevent duplicate collection/rewards
+- [x] Fix the bug where landing on a platform sometimes immediately drops the player through it
+
+## Prototype Scope (MVP)
+
+- [x] One arena with normal dots and currency dots
+- [x] Rising death zone and exit
+- [x] Single-use shield
+- [x] Currency-funded upgrades

@@ -41,7 +41,7 @@
     .metric-value { display: block; margin-top: 3px; font-size: 19px; font-weight: 600; }
     .metric-value small { color: var(--muted); font-size: 12px; font-weight: 400; }
     .arena { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 0 0 7px 7px; background: #172427; aspect-ratio: 960 / 600; }
-    canvas { display: block; width: 100%; height: 100%; }
+    #game, #game canvas { display: block; width: 100%; height: 100%; }
     .footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 20px; padding: 13px 2px 0; color: var(--muted); font-size: 11px; }
     .footer strong { color: var(--ink); font-weight: 500; }
     kbd { padding: 2px 5px; border: 1px solid #506064; border-radius: 3px; color: var(--ink); font: inherit; }
@@ -69,12 +69,12 @@
       <div class="metric"><span class="metric-label">Credits</span><span class="metric-value" id="credits">0</span></div>
       <div class="metric"><span class="metric-label">Shield</span><span class="metric-value" id="shield">Ready</span></div>
     </section>
-    <div class="arena"><canvas id="game" width="960" height="600" aria-label="Updraft platform game"></canvas></div>
+    <div class="arena"><div id="game" role="img" aria-label="Updraft platform game"></div></div>
     <div class="footer">
       <span><strong>Move</strong> <kbd>A</kbd> <kbd>D</kbd> / arrows &nbsp; <strong>Jump</strong> <kbd>W</kbd> <kbd>Space</kbd> / ↑</span>
       <span><strong>Dash</strong> <kbd>Shift</kbd> &nbsp; <strong>Start / continue</strong> <kbd>Enter</kbd></span>
     </div>
   </main>
-  <script type="module" src="/src/main.js"></script>
+  <script type="module" src="/src/bootstrap.js"></script>
 </body>
 </html>

@@ -10,10 +10,16 @@ export function createPlatformDots(platforms, type) {
       const surfaceDotIndex = Math.floor(index / surfaces.length);
       const surfaceDotCount = Math.ceil((DOTS_PER_PLATFORM - surfaceIndex) / surfaces.length);
       const fraction = (surfaceDotIndex + 1) / (surfaceDotCount + 1);
+      const x = platform.x + surface.x + surface.width * fraction;
+      const centerX = platform.x + platform.w / 2;
+      const centerY = platform.y + platform.h / 2;
+      const y = platform.angle
+        ? centerY + Math.sin(platform.angle) * (x - centerX) - Math.cos(platform.angle) * platform.h / 2 - 28
+        : platform.y + surface.y - 28;
       return {
         id: `${platform.id}:${type}:${index}`,
-        x: platform.x + surface.x + surface.width * fraction,
-        y: platform.y + surface.y - 28,
+        x,
+        y,
         type,
         taken: false,
         platform,
@@ -23,21 +29,14 @@ export function createPlatformDots(platforms, type) {
   });
 }
 
-export function collectNearbyDots(player, dots) {
-  const collected = [];
-  const playerX = player.x + player.w / 2;
-  const playerY = player.y + player.h / 2;
-
-  for (const dot of dots) {
-    if (dot.taken) continue;
-    const dx = playerX - dot.x;
-    const dy = playerY - dot.y;
-    if (dx * dx + dy * dy >= PICKUP_RADIUS * PICKUP_RADIUS) continue;
-    dot.taken = true;
-    collected.push(dot);
-  }
-
-  return collected;
+export function rewardDot(state, dot) {
+  if (dot.taken) return false;
+  dot.taken = true;
+  if (dot.type === 'currency') {
+    state.credits += 1;
+    state.currencyCollected += 1;
+  } else state.normalCollected += 1;
+  return true;
 }
 
 export function nearestUncollectedDot(player, dots) {

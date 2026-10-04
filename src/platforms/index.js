@@ -5,8 +5,9 @@ import t from './t.js';
 import y from './y.js';
 import l from './l.js';
 import step from './step.js';
+import ramp from './ramp.js';
 
-export const PLATFORM_SHAPES = Object.freeze([narrow, standard, wide, t, y, l, step]);
+export const PLATFORM_SHAPES = Object.freeze([narrow, standard, wide, t, y, l, step, ramp]);
 export const STANDARD_PLATFORM = standard;
 
 const platformByType = new Map(PLATFORM_SHAPES.map(platform => [platform.type, platform]));
