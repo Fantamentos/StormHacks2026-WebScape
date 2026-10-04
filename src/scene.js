@@ -3,8 +3,13 @@ import { startCollapseWaves, updateCollapse } from './phases/collapse/collapse.j
 import { createPlatformDots, rewardDot } from './dots.js';
 import { advanceDasher, chooseDasherSpawn, createDasher } from './enemies/dasher.js';
 import { advanceDoppelgangerRun, createDoppelgangerRun } from './enemies/doppelganger.js';
+import { advanceSentinel, advanceSentinelBullet, createSentinel } from './enemies/sentinel.js';
+import { advanceStopwatch, createStopwatch, getStopwatchDisplay } from './enemies/stopwatch.js';
 import { generateLevel } from './map.js';
-import { ENEMY_MODIFIER_IDS, getDasherModifierOptions, getDoppelgangerModifierOptions } from './modifiers/enemyModifiers.js';
+import { DASHER_FOLLOWUP, getDasherModifierOptions } from './modifiers/dasher.js';
+import { getDoppelgangerModifierOptions } from './modifiers/doppelganger.js';
+import { getSentinelModifierOptions } from './modifiers/sentinel.js';
+import { getStopwatchModifierOptions } from './modifiers/stopwatch.js';
 import { getPlatformShape } from './platforms/index.js';
 import { isGroundContact } from './matterSupport.js';
 import { dasherCollisionMask, DOT_CATEGORY, DOT_MASK, ENEMY_CATEGORY, EXIT_CATEGORY, EXIT_MASK, PLAYER_CATEGORY, PLAYER_MASK, PLATFORM_CATEGORY, PLATFORM_MASK } from './matterFilters.js';
@@ -32,10 +37,19 @@ export default class UpdraftScene extends Phaser.Scene {
     this.matter.world.setGravity(0, 1, 0.001);
     this.state = this.createState();
     this.gameGraphics = this.add.graphics().setDepth(1);
+    this.stopwatchTimer = this.add.text(0, 0, '', {
+      fontFamily: 'DM Mono, monospace',
+      fontSize: '16px',
+      color: '#eef2e7',
+      stroke: '#162326',
+      strokeThickness: 4
+    }).setOrigin(0.5).setDepth(12).setVisible(false);
     createSceneUi(this, this.state);
     this.platformBodies = new Map();
     this.groundContacts = new Map();
     this.doppelgangerVisuals = [];
+    this.sentinelBullets = [];
+    this.stopwatchInputThisFrame = false;
     this.keys = this.input.keyboard.addKeys({
       left: 'LEFT', right: 'RIGHT', a: 'A', d: 'D',
       up: 'UP', w: 'W', space: 'SPACE', shift: 'SHIFT'
@@ -88,7 +102,10 @@ export default class UpdraftScene extends Phaser.Scene {
       collapse: null,
       enemy: null,
       doppelgangerRun: null,
-      enemyModifiers: [ENEMY_MODIFIER_IDS.DASHER_FOLLOWUP],
+      stopwatchRun: null,
+      stopwatchPosition: null,
+      sentinel: null,
+      enemyModifiers: [DASHER_FOLLOWUP.id],
       playerInvulnerableUntil: 0
     };
     state.syncHud = () => this.syncHud();
@@ -125,6 +142,11 @@ export default class UpdraftScene extends Phaser.Scene {
           this.pendingDotCollections.add(other.dot);
           continue;
         }
+        if (other.isSentinelBullet) {
+          this.removeSentinelBullet(other);
+          this.handleEnemyHit(other);
+          continue;
+        }
         if (other.isDasher) {
           this.handleEnemyHit(other);
           continue;
@@ -149,6 +171,9 @@ export default class UpdraftScene extends Phaser.Scene {
 
   bindInput() {
     this.input.keyboard.on('keydown', event => {
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'Space', 'KeyA', 'KeyD', 'KeyW', 'ShiftLeft'].includes(event.code)) {
+        this.stopwatchInputThisFrame = true;
+      }
       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'Space'].includes(event.code)) event.preventDefault();
       if (event.repeat) return;
       if (['Space', 'ArrowUp', 'KeyW'].includes(event.code)) this.jump();
@@ -267,6 +292,134 @@ export default class UpdraftScene extends Phaser.Scene {
     copies.forEach((copy, index) => this.doppelgangerVisuals[index].setPosition(copy.x, copy.y));
     this.state.phaseNode.dataset.doppelgangerCount = String(copies.length);
     this.state.phaseNode.dataset.doppelgangerBody = this.doppelgangerVisuals.map(visual => `${visual.x},${visual.y},${visual.body.isStatic},${visual.body.isSensor},${visual.body.collisionFilter.category},${visual.body.collisionFilter.mask}`).join(';');
+  }
+
+  clearStopwatch() {
+    this.state.stopwatchRun = null;
+    this.state.stopwatchPosition = null;
+    this.stopwatchTimer.setVisible(false).setText('');
+  }
+
+  startStopwatch(time = this.time.now) {
+    this.clearStopwatch();
+    this.state.stopwatchRun = createStopwatch(time, getStopwatchModifierOptions(this.state.enemyModifiers));
+  }
+
+  updateStopwatch(time, hasInput) {
+    const run = this.state.stopwatchRun;
+    if (!run) return;
+    const transition = advanceStopwatch(run, time, hasInput);
+    if (transition?.type === 'spawn') {
+      const playerPosition = { x: this.playerVisual.x, y: this.playerVisual.y };
+      const spawn = chooseDasherSpawn(this.state.nodes, playerPosition);
+      this.state.stopwatchPosition = spawn
+        ? { x: spawn.x, y: spawn.y }
+        : { x: playerPosition.x + 100, y: playerPosition.y - 80 };
+    } else if (transition?.type === 'evaded') {
+      this.state.stopwatchPosition = null;
+    } else if (transition?.type === 'damage') {
+      const position = this.state.stopwatchPosition || { x: this.playerVisual.x, y: this.playerVisual.y };
+      this.state.stopwatchPosition = null;
+      this.handleEnemyHit({ position });
+    }
+
+    const position = this.state.stopwatchPosition;
+    const display = getStopwatchDisplay(run, time);
+    if (!position || !display) {
+      this.stopwatchTimer.setVisible(false);
+      return;
+    }
+    this.stopwatchTimer
+      .setText(String(display.seconds))
+      .setColor(display.finalSecond ? '#ffd16d' : '#eef2e7')
+      .setPosition(position.x, position.y - 32)
+      .setVisible(true);
+  }
+
+  clearSentinelBullets() {
+    for (const entry of this.sentinelBullets) {
+      this.matter.world.remove(entry.visual.body);
+      entry.visual.destroy();
+    }
+    this.sentinelBullets = [];
+  }
+
+  removeSentinelBullet(body) {
+    const index = this.sentinelBullets.findIndex(entry => entry.visual.body === body);
+    if (index < 0) return;
+    const [entry] = this.sentinelBullets.splice(index, 1);
+    this.matter.world.remove(body);
+    entry.visual.destroy();
+  }
+
+  removeSentinel() {
+    this.clearSentinelBullets();
+    if (this.sentinelVisual) {
+      this.matter.world.remove(this.sentinelVisual.body);
+      this.sentinelVisual.destroy();
+      this.sentinelVisual = null;
+    }
+    this.state.sentinel = null;
+  }
+
+  spawnSentinel() {
+    this.removeSentinel();
+    const spawn = chooseDasherSpawn(this.state.nodes, {
+      x: this.playerVisual.x,
+      y: this.playerVisual.y
+    });
+    if (!spawn) return;
+
+    this.state.sentinel = createSentinel(
+      spawn.platform,
+      spawn.x,
+      spawn.y,
+      this.time.now,
+      getSentinelModifierOptions(this.state.enemyModifiers)
+    );
+    this.sentinelVisual = this.add.rectangle(spawn.x, spawn.y, 26, 22, 0xd5a64e).setDepth(9);
+    this.matter.add.gameObject(this.sentinelVisual, {
+      shape: { type: 'rectangle', width: 26, height: 22 },
+      isStatic: true,
+      isSensor: true,
+      collisionFilter: { category: ENEMY_CATEGORY, mask: 0 },
+      label: 'sentinel'
+    });
+    this.sentinelVisual.body.isSentinel = true;
+  }
+
+  updateSentinel(time, delta) {
+    const sentinel = this.state.sentinel;
+    if (!sentinel || !this.sentinelVisual) return;
+    const update = advanceSentinel(sentinel, time, {
+      x: this.playerVisual.x,
+      y: this.playerVisual.y
+    });
+    this.sentinelVisual.setPosition(update.position.x, update.position.y);
+
+    for (const bullet of update.bullets) {
+      const visual = this.add.circle(bullet.x, bullet.y, bullet.radius, 0xf16e5d).setDepth(9);
+      this.matter.add.gameObject(visual, {
+        shape: { type: 'circle', radius: bullet.radius },
+        isStatic: true,
+        isSensor: true,
+        collisionFilter: { category: ENEMY_CATEGORY, mask: PLAYER_CATEGORY },
+        label: 'sentinel-bullet'
+      });
+      const entry = { model: bullet, visual };
+      visual.body.isSentinelBullet = true;
+      visual.body.sentinelBullet = entry;
+      this.sentinelBullets.push(entry);
+    }
+
+    for (let index = this.sentinelBullets.length - 1; index >= 0; index -= 1) {
+      const entry = this.sentinelBullets[index];
+      if (!advanceSentinelBullet(entry.model, delta)) {
+        this.removeSentinelBullet(entry.visual.body);
+        continue;
+      }
+      entry.visual.setPosition(entry.model.x, entry.model.y);
+    }
   }
 
   handleEnemyHit(enemyBody) {
@@ -412,6 +565,8 @@ export default class UpdraftScene extends Phaser.Scene {
     this.playerVisual.setIgnoreGravity(false);
     this.removeDasher();
     this.clearDoppelgangers();
+    this.clearStopwatch();
+    this.removeSentinel();
     for (const id of [...this.platformBodies.keys()]) this.removePlatformBodies(id);
     this.clearDotBodies();
     if (this.state.exitBody) this.matter.world.remove(this.state.exitBody);
@@ -449,6 +604,8 @@ export default class UpdraftScene extends Phaser.Scene {
     this.state.mode = 'collect';
     this.spawnDasher();
     this.startDoppelgangers();
+    this.startStopwatch();
+    this.spawnSentinel();
     this.syncHud();
   }
 
@@ -485,11 +642,27 @@ export default class UpdraftScene extends Phaser.Scene {
   update(time, delta) {
     const state = this.state;
     const dt = Math.min(delta / 1000, 0.05);
+    const left = this.keys.left.isDown || this.keys.a.isDown;
+    const right = this.keys.right.isDown || this.keys.d.isDown;
+    const hasControlInput = this.stopwatchInputThisFrame
+      || left
+      || right
+      || this.keys.up.isDown
+      || this.keys.w.isDown
+      || this.keys.space.isDown
+      || this.keys.shift.isDown;
+    this.stopwatchInputThisFrame = false;
     this.syncPlayerState();
     if (state.mode === 'collect' || state.mode === 'collapse') {
       state.elapsed += dt;
       this.updateDasher(time);
       this.updateDoppelgangers(time);
+      this.updateStopwatch(time, hasControlInput);
+      if (state.mode === 'dead') {
+        drawGame(this, state);
+        return;
+      }
+      this.updateSentinel(time, delta);
       this.processDotCollections();
       if (state.mode === 'collapse') {
         updateCollapse(state, dt);
@@ -497,8 +670,6 @@ export default class UpdraftScene extends Phaser.Scene {
         this.syncDotBodies();
       }
 
-      const left = this.keys.left.isDown || this.keys.a.isDown;
-      const right = this.keys.right.isDown || this.keys.d.isDown;
       const direction = Number(right) - Number(left);
       if (direction) state.player.facing = direction;
       if (time < (this.dashUntil || 0)) this.matter.setVelocityX(this.playerVisual, state.player.facing * DASH_SPEED);

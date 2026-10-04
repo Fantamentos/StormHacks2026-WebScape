@@ -8,7 +8,7 @@ import {
   DOPPELGANGER_SPAWN_DELAY_MS,
   samplePosition
 } from './doppelganger.js';
-import { DOPPELGANGER_BUFFED_MAX_COUNT } from '../modifiers/enemyModifiers.js';
+import { DOPPELGANGER_CAP_FIVE, DOPPELGANGER_FAST_FOLLOW, getDoppelgangerModifierOptions } from '../modifiers/doppelganger.js';
 
 test('history sampling interpolates between recorded player positions', () => {
   assert.deepEqual(samplePosition([{ time: 0, x: 0, y: 20 }, { time: 1000, x: 100, y: 40 }], 500), { x: 50, y: 30 });
@@ -45,10 +45,22 @@ test('a fresh level run clears the old recorded trail', () => {
 });
 
 test('the configured enemy-buff modifier raises the copy cap to five', () => {
-  const run = createDoppelgangerRun(0, { x: 0, y: 0 }, { maxCount: DOPPELGANGER_BUFFED_MAX_COUNT });
+  const run = createDoppelgangerRun(0, { x: 0, y: 0 }, getDoppelgangerModifierOptions([DOPPELGANGER_CAP_FIVE.id]));
   for (let time = 100; time <= 14000; time += 100) {
     advanceDoppelgangerRun(run, time, { x: time / 10, y: 0 });
   }
 
-  assert.equal(run.copies.length, DOPPELGANGER_BUFFED_MAX_COUNT);
+  assert.equal(run.copies.length, DOPPELGANGER_CAP_FIVE.maxCount);
+});
+
+test('the fast-follow modifier shortens chain spacing without changing initial spawn grace', () => {
+  const options = getDoppelgangerModifierOptions([DOPPELGANGER_FAST_FOLLOW.id]);
+  const run = createDoppelgangerRun(0, { x: 0, y: 0 }, options);
+
+  assert.equal(run.nextSpawnAt, DOPPELGANGER_SPAWN_DELAY_MS);
+  assert.equal(run.delayMs, DOPPELGANGER_FAST_FOLLOW.delayMs);
+  assert.equal(advanceDoppelgangerRun(run, 1999, { x: 199, y: 0 }).length, 0);
+  assert.equal(advanceDoppelgangerRun(run, 2000, { x: 200, y: 0 }).length, 1);
+  assert.equal(advanceDoppelgangerRun(run, 2999, { x: 299, y: 0 }).length, 1);
+  assert.equal(advanceDoppelgangerRun(run, 3000, { x: 300, y: 0 }).length, 2);
 });

@@ -1,4 +1,5 @@
 import { nearestUncollectedDot } from './dots.js';
+import { getStopwatchDisplay } from './enemies/stopwatch.js';
 import { getPlatformShape } from './platforms/index.js';
 
 function colorValue(value) {
@@ -128,6 +129,52 @@ function drawDoppelgangers(graphics, state, scene) {
     graphics.fillRect(copy.x + 2, copy.y - 7, 4, 4);
     graphics.fillRect(copy.x - 8, copy.y + 10, 7, 5);
     graphics.fillRect(copy.x + 1, copy.y + 10, 7, 5);
+  }
+}
+
+function drawStopwatch(graphics, state, scene) {
+  const position = state.stopwatchPosition;
+  const run = state.stopwatchRun;
+  if (!position || !run?.active) return;
+  const display = getStopwatchDisplay(run, scene.time.now);
+  const color = display.finalSecond ? 0xffd16d : 0xe87965;
+  graphics.fillStyle(0x202b2c, 1);
+  graphics.fillCircle(position.x, position.y, 15);
+  graphics.lineStyle(3, color, 1);
+  graphics.strokeCircle(position.x, position.y, 13);
+  graphics.lineStyle(2, 0xf4e9d2, 1);
+  graphics.lineBetween(position.x, position.y, position.x, position.y - 7);
+  graphics.lineBetween(position.x, position.y, position.x + 6, position.y + 3);
+  graphics.fillStyle(color, 1);
+  graphics.fillRect(position.x - 4, position.y - 18, 8, 3);
+}
+
+function drawSentinel(graphics, state, scene) {
+  const sentinel = state.sentinel;
+  const visual = scene.sentinelVisual;
+  if (!sentinel || !visual) return;
+
+  graphics.fillStyle(0x583d1c, 1);
+  graphics.fillCircle(visual.x - 5, visual.y - 2, 2);
+  graphics.fillCircle(visual.x + 5, visual.y - 2, 2);
+  graphics.fillStyle(0xffd16d, 1);
+  graphics.fillRect(visual.x - 4, visual.y + 4, 8, 2);
+
+  if (sentinel.phase !== 'telegraph' || !sentinel.target) return;
+  const deltaX = sentinel.target.x - visual.x;
+  const deltaY = sentinel.target.y - visual.y;
+  const length = Math.hypot(deltaX, deltaY);
+  const segmentLength = 12;
+  const gapLength = 12;
+  graphics.lineStyle(2, 0xffd16d, 0.3);
+  for (let distance = 0; distance < length; distance += segmentLength + gapLength) {
+    const end = Math.min(length, distance + segmentLength);
+    graphics.lineBetween(
+      visual.x + deltaX / length * distance,
+      visual.y + deltaY / length * distance,
+      visual.x + deltaX / length * end,
+      visual.y + deltaY / length * end
+    );
   }
 }
 
@@ -268,6 +315,8 @@ export function drawGame(scene, state) {
 
   drawDoppelgangers(graphics, state, scene);
   drawDasher(graphics, state, scene);
+  drawStopwatch(graphics, state, scene);
+  drawSentinel(graphics, state, scene);
   scene.roundLabel.setText(`ROUND ${String(state.round).padStart(2, '0')}  /  COLLECT DOTS`);
   updateOverlay(scene, state);
   if (state.owned.compass && (state.mode === 'collect' || state.mode === 'collapse')) drawCompass(scene.uiGraphics, state, scene);

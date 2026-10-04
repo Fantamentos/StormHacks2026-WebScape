@@ -1,7 +1,8 @@
+import { DASHER_FOLLOWUP } from '../modifiers/dasher.js';
+
 export const SPAWN_GRACE_MS = 2000;
 export const TELEGRAPH_MS = 1000;
 export const DASH_MS = 1000;
-export const FOLLOWUP_TELEGRAPH_MS = 250;
 const TARGET_RADIUS_X = 48;
 const TARGET_RADIUS_Y = 24;
 const MIN_SPAWN_DISTANCE = 220;
@@ -41,6 +42,7 @@ export function createDasher(platform, x, y, spawnTime, options = {}) {
     phaseEndsAt: spawnTime + SPAWN_GRACE_MS,
     target: null,
     buffedFollowup: options.buffedFollowup ?? false,
+    followupTelegraphMs: options.followupTelegraphMs ?? DASHER_FOLLOWUP.telegraphMs,
     dashStart: null,
     dashStartedAt: 0
   };
@@ -104,7 +106,7 @@ export function advanceDasher(dasher, now, player, random = Math.random) {
     dasher.x = dasher.target.x;
     dasher.y = dasher.target.y;
     if (dasher.buffedFollowup) {
-      return startTelegraph(dasher, player, now, FOLLOWUP_TELEGRAPH_MS, 'followupTelegraph', random);
+      return startTelegraph(dasher, player, now, dasher.followupTelegraphMs, 'followupTelegraph', random);
     }
     return startTelegraph(dasher, player, now, TELEGRAPH_MS, 'telegraph', random);
   }

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { advanceDasher, chooseDasherSpawn, createDasher, DASH_MS, FOLLOWUP_TELEGRAPH_MS, getDasherDashPosition, SPAWN_GRACE_MS, TELEGRAPH_MS } from './dasher.js';
+import { advanceDasher, chooseDasherSpawn, createDasher, DASH_MS, getDasherDashPosition, SPAWN_GRACE_MS, TELEGRAPH_MS } from './dasher.js';
+import { DASHER_FOLLOWUP, getDasherModifierOptions } from '../modifiers/dasher.js';
 
 test('Dasher waits two seconds, telegraphs for one second, dashes for one, then telegraphs again', () => {
   const player = { x: 200, y: 100 };
@@ -51,7 +52,7 @@ test('Dasher starts slightly fast and visibly eases through the final quarter', 
 });
 
 test('Dasher modifier inserts a 250 ms follow-up telegraph and dash before normal timing resumes', () => {
-  const dasher = createDasher({ id: 'outer-platform' }, 0, 100, 0, { buffedFollowup: true });
+  const dasher = createDasher({ id: 'outer-platform' }, 0, 100, 0, getDasherModifierOptions([DASHER_FOLLOWUP.id]));
   const player = { x: 200, y: 100 };
   const random = () => 0.5;
   advanceDasher(dasher, SPAWN_GRACE_MS, player, random);
@@ -59,7 +60,7 @@ test('Dasher modifier inserts a 250 ms follow-up telegraph and dash before norma
   const followup = advanceDasher(dasher, SPAWN_GRACE_MS + TELEGRAPH_MS + DASH_MS, player, random);
 
   assert.equal(followup.phase, 'followupTelegraph');
-  assert.equal(followup.duration, FOLLOWUP_TELEGRAPH_MS);
+  assert.equal(followup.duration, DASHER_FOLLOWUP.telegraphMs);
   assert.equal(advanceDasher(dasher, 4249, player, random), null);
   assert.equal(advanceDasher(dasher, 4250, player, random).phase, 'followupDash');
   const normal = advanceDasher(dasher, 5250, player, random);
