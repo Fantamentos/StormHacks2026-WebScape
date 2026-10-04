@@ -4,6 +4,20 @@ FUTURE TASKS
 Ideas for later. Not part of the current work (see TODO_TASKS.txt).
 
 
+LEVEL INTERMISSION
+==================
+
+- Add an intermission between levels for a breather and a chance to review progress or upgrades.
+- Decide what the intermission offers and how the player starts the next level.
+
+
+MAP VARIATION
+=============
+
+- Add varied level challenges that change gaps, elevation, branch layouts and platform arrangements as level number increases.
+- Add a seed for each generated level/run so layouts can be reproduced for debugging or shared with others.
+
+
 COLLAPSE POLISH
 ===============
 

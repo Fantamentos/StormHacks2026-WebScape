@@ -1,6 +1,6 @@
-import { CHUNK_HEIGHT, CHUNK_WIDTH, ensureChunks, loadChunkArea } from './chunks.js';
 import { startCollapseWaves, updateCollapse } from './collapse.js';
 import { drawGame } from './draw.js';
+import { generateLevel } from './map.js';
 import { createOwnedUpgrades, purchaseUpgrade, upgrades } from './upgrades.js';
 
 const canvas = document.querySelector('#game');
@@ -20,7 +20,9 @@ const state = {
   owned: createOwnedUpgrades(),
   keys: new Set(),
   platforms: [],
-  chunks: new Map(),
+  nodes: [],
+  map: null,
+  startPlatform: null,
   dots: [],
   shopButtons: [],
   mode: 'ready',
@@ -29,7 +31,6 @@ const state = {
   elapsed: 0,
   messageTimer: 0,
   normalCollected: 0,
-  normalSpawned: 0,
   camera: { x: 0, y: 0 },
   player: null,
   enemy: null,
@@ -48,19 +49,18 @@ state.syncHud = function syncHud() {
 };
 
 function resetRound() {
-  state.chunks.clear();
-  state.platforms.length = 0;
-  state.dots = [];
+  state.map = generateLevel(state.round);
+  state.nodes = state.map.nodes;
+  state.platforms = state.map.platforms;
+  state.dots = state.map.dots;
   state.normalCollected = 0;
-  state.normalSpawned = 0;
-  state.player = { x: 48, y: 416, vx: 0, vy: 0, w: 25, h: 34, grounded: false, jumps: 0, invulnerable: 0, dashTime: 0, dashCooldown: 0, facing: 1, shieldUsed: false };
+  state.startPlatform = state.map.root;
+  state.player = { x: state.startPlatform.x + state.startPlatform.w / 2 - 12, y: state.startPlatform.y - 34, vx: 0, vy: 0, w: 25, h: 34, grounded: false, jumps: 0, invulnerable: 0, dashTime: 0, dashCooldown: 0, facing: 1, shieldUsed: false };
   state.camera = { x: state.player.x - state.width * 0.35, y: state.player.y - state.height * 0.55 };
-  ensureChunks(state);
-  state.platforms.push({ x: -80, y: 470, w: 240, h: 16, chunk: 'start' });
-  state.player.y = 436;
   state.player.groundY = state.player.y;
   state.camera = { x: state.player.x + state.player.w / 2 - state.width / 2, y: state.player.y + state.player.h / 2 - state.height / 2 };
-  state.enemy = { x: 330, y: 440, w: 31, h: 30, vx: 95 + state.round * 7, min: 250, max: 510 };
+  const enemyPlatform = state.map.nodes[1] || state.startPlatform;
+  state.enemy = { x: enemyPlatform.x + 30, y: enemyPlatform.y - 30, w: 31, h: 30, vx: 95 + state.round * 7, min: enemyPlatform.x, max: enemyPlatform.x + enemyPlatform.w };
   state.exit = null;
   state.exitPlatform = null;
   state.collapse = null;
@@ -90,24 +90,16 @@ function collide(a, b) {
 
 function startCollapse() {
   state.mode = 'collapse';
-  state.exitPlatform = state.platforms.find(platform => platform.chunk === 'start');
+  state.exitPlatform = state.startPlatform;
   const start = state.exitPlatform;
   state.exit = { x: start.x + start.w / 2 - 21, y: start.y - 50, w: 42, h: 50 };
 
-  // Load the whole region between the player and the exit so a route back exists.
-  const cx = [Math.floor(state.player.x / CHUNK_WIDTH), Math.floor(state.exit.x / CHUNK_WIDTH)];
-  const cy = [Math.floor(state.player.y / CHUNK_HEIGHT), Math.floor(state.exit.y / CHUNK_HEIGHT)];
-  loadChunkArea(state, Math.min(...cx) - 1, Math.max(...cx) + 1, Math.min(...cy) - 1, Math.max(...cy) + 1);
-
-  const origin = { x: start.x + start.w / 2, y: start.y };
-  const candidates = state.platforms
-    .filter(platform => platform !== start)
-    .sort((a, b) => ((b.x - origin.x) ** 2 + (b.y - origin.y) ** 2) - ((a.x - origin.x) ** 2 + (a.y - origin.y) ** 2));
+  const candidates = state.nodes.filter(node => node !== start).sort((a, b) => b.distance - a.distance);
   const count = Math.min(10, candidates.length);
   state.dots = [];
   for (let index = 0; index < count; index += 1) {
-    const platform = candidates[Math.floor(index * candidates.length / count)];
-    state.dots.push({ x: platform.x + platform.w / 2, y: platform.y - 27, type: 'currency', taken: false, chunk: platform.chunk, platform });
+    const platform = candidates[index];
+    state.dots.push({ x: platform.x + platform.w / 2, y: platform.y - 27, type: 'currency', taken: false, platform, nodeId: platform.id });
   }
 
   startCollapseWaves(state);
@@ -121,8 +113,7 @@ function update(dt) {
   const follow = Math.min(1, dt * 6);
   state.camera.x += (state.player.x + state.player.w / 2 - state.width / 2 - state.camera.x) * follow;
   state.camera.y += (state.player.y + state.player.h / 2 - state.height / 2 - state.camera.y) * follow;
-  if (state.mode === 'collect') ensureChunks(state);
-  else updateCollapse(state, dt);
+  if (state.mode === 'collapse') updateCollapse(state, dt);
   state.player.invulnerable = Math.max(0, state.player.invulnerable - dt);
   state.player.dashCooldown = Math.max(0, state.player.dashCooldown - dt);
   state.player.dashTime = Math.max(0, state.player.dashTime - dt);
