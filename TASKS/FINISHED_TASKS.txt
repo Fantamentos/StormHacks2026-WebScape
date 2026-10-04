@@ -33,6 +33,12 @@ FINISHED TASKS
 - [x] Temporarily disable enemies while prototyping dots and collapse; restore/redesign them after the core loop is tuned
 - [x] Spawn 3 normal dots on every platform during collection and 3 currency dots on every platform during collapse; prevent duplicate collection/rewards
 - [x] Fix the bug where landing on a platform sometimes immediately drops the player through it
+- [x] HIGH PRIORITY: Fix the bug that prevents the player from jumping
+- [x] Revamp map generation to choose seeded random branch directions from positions reachable with the player's jump physics
+- [x] Reject candidate platforms that overlap or violate minimum clearance with any nearby platform
+- [x] Retry rejected seeded map layouts and use a validated fixed fallback after the bounded attempts
+- [x] Try another clear leaf branch when an optional floating step does not fit
+- [x] Use standard-shape, standard-size platforms for all platforms directly adjacent to the start platform
 
 ## Prototype Scope (MVP)
 

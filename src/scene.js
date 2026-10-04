@@ -1,9 +1,11 @@
 import Phaser from 'phaser';
 import { startCollapseWaves, updateCollapse } from './collapse.js';
 import { createPlatformDots, rewardDot } from './dots.js';
+import { advanceDasher, chooseDasherSpawn, createDasher } from './enemies/dasher.js';
 import { generateLevel } from './map.js';
 import { getPlatformShape } from './platforms/index.js';
 import { isGroundContact } from './matterSupport.js';
+import { dasherCollisionMask, DOT_CATEGORY, DOT_MASK, ENEMY_CATEGORY, EXIT_CATEGORY, EXIT_MASK, PLAYER_CATEGORY, PLAYER_MASK, PLATFORM_CATEGORY, PLATFORM_MASK } from './matterFilters.js';
 import { createSceneUi, drawGame } from './render.js';
 import { createOwnedUpgrades, purchaseUpgrade, upgrades } from './upgrades.js';
 
@@ -79,7 +81,8 @@ export default class UpdraftScene extends Phaser.Scene {
       exitTouched: false,
       dotBodies: new Map(),
       collapse: null,
-      enemy: null
+      enemy: null,
+      playerInvulnerableUntil: 0
     };
     state.syncHud = () => this.syncHud();
     return state;
@@ -93,7 +96,8 @@ export default class UpdraftScene extends Phaser.Scene {
       friction: 0,
       frictionAir: 0.008,
       restitution: 0,
-      inertia: Infinity
+      inertia: Infinity,
+      collisionFilter: { category: PLAYER_CATEGORY, mask: PLAYER_MASK }
     });
     this.state.playerBody = this.playerVisual.body;
     this.pendingDotCollections = new Set();
@@ -112,6 +116,10 @@ export default class UpdraftScene extends Phaser.Scene {
         }
         if (other.dot) {
           this.pendingDotCollections.add(other.dot);
+          continue;
+        }
+        if (other.isDasher) {
+          this.handleDasherHit();
           continue;
         }
         if (!other.platformNode) continue;
@@ -146,6 +154,80 @@ export default class UpdraftScene extends Phaser.Scene {
       zone.on('pointerdown', () => purchaseUpgrade(this.state, index));
       return zone;
     });
+  }
+
+  removeDasher() {
+    if (this.dasherVisual) {
+      this.matter.world.remove(this.dasherVisual.body);
+      this.dasherVisual.destroy();
+      this.dasherVisual = null;
+    }
+    this.state.enemy = null;
+  }
+
+  spawnDasher() {
+    this.removeDasher();
+    const state = this.state;
+    const playerPosition = { x: this.playerVisual.x, y: this.playerVisual.y };
+    const spawn = chooseDasherSpawn(state.nodes, playerPosition);
+    if (!spawn) return;
+
+    state.enemy = createDasher(spawn.platform, spawn.x, spawn.y, this.time.now);
+    const x = spawn.x;
+    const y = spawn.y;
+    this.dasherVisual = this.add.rectangle(x, y, 24, 24, 0xe87965).setDepth(9);
+    this.matter.add.gameObject(this.dasherVisual, {
+      shape: { type: 'rectangle', width: 24, height: 24 },
+      isSensor: true,
+      ignoreGravity: true,
+      collisionFilter: { category: ENEMY_CATEGORY, mask: dasherCollisionMask('grace') },
+      friction: 0,
+      frictionAir: 0,
+      restitution: 0,
+      inertia: Infinity,
+      label: 'dasher'
+    });
+    this.dasherVisual.setFixedRotation();
+    this.dasherVisual.body.isDasher = true;
+  }
+
+  updateDasher(time) {
+    const dasher = this.state.enemy;
+    if (!dasher || !this.dasherVisual) return;
+    dasher.x = this.dasherVisual.x;
+    dasher.y = this.dasherVisual.y;
+    const previousPhase = dasher.phase;
+    const transition = advanceDasher(dasher, time, this.state.player, Math.random);
+    if (!transition) return;
+
+    if (transition.type === 'telegraph') {
+      if (previousPhase === 'dash') {
+        this.dasherVisual.setPosition(dasher.x, dasher.y);
+        this.matter.setVelocity(this.dasherVisual, 0, 0);
+      }
+      this.dasherVisual.body.collisionFilter.mask = dasherCollisionMask('telegraph');
+    } else if (transition.type === 'dash') {
+      this.dasherVisual.body.collisionFilter.mask = dasherCollisionMask('dash');
+      this.matter.setVelocity(this.dasherVisual, transition.velocity.x, transition.velocity.y);
+    }
+  }
+
+  handleDasherHit() {
+    const state = this.state;
+    if (!state.enemy || state.enemy.phase !== 'dash' || this.time.now < state.playerInvulnerableUntil) return;
+    if (!state.player.shieldUsed) {
+      state.player.shieldUsed = true;
+      state.playerInvulnerableUntil = this.time.now + 800;
+      const direction = Math.sign(this.playerVisual.x - this.dasherVisual.x) || 1;
+      this.matter.setVelocity(this.playerVisual, direction * 4, -3);
+      this.syncHud();
+      return;
+    }
+
+    state.mode = 'dead';
+    this.matter.setVelocity(this.playerVisual, 0, 0);
+    this.removeDasher();
+    this.syncHud();
   }
 
   handleEnter() {
@@ -187,7 +269,13 @@ export default class UpdraftScene extends Phaser.Scene {
         platform.y + section.y + section.height / 2,
         section.width,
         section.height,
-        { isStatic: true, angle: platform.angle || 0, friction: 0.9, label: `platform:${platform.id}` }
+        {
+          isStatic: true,
+          angle: platform.angle || 0,
+          friction: 0.9,
+          collisionFilter: { category: PLATFORM_CATEGORY, mask: PLATFORM_MASK },
+          label: `platform:${platform.id}`
+        }
       );
       body.platformNode = platform;
       return body;
@@ -202,6 +290,7 @@ export default class UpdraftScene extends Phaser.Scene {
       const body = this.matter.add.circle(dot.x, dot.y, 12, {
         isStatic: true,
         isSensor: true,
+        collisionFilter: { category: DOT_CATEGORY, mask: DOT_MASK },
         label: `dot:${dot.type}`
       });
       body.dot = dot;
@@ -256,12 +345,14 @@ export default class UpdraftScene extends Phaser.Scene {
     this.state.exitBody = this.matter.add.rectangle(exit.x + exit.w / 2, exit.y + exit.h / 2, exit.w, exit.h, {
       isStatic: true,
       isSensor: true,
+      collisionFilter: { category: EXIT_CATEGORY, mask: EXIT_MASK },
       label: 'exit'
     });
     this.state.exitBody.isExit = true;
   }
 
   resetRound() {
+    this.removeDasher();
     for (const id of [...this.platformBodies.keys()]) this.removePlatformBodies(id);
     this.clearDotBodies();
     if (this.state.exitBody) this.matter.world.remove(this.state.exitBody);
@@ -297,6 +388,7 @@ export default class UpdraftScene extends Phaser.Scene {
   beginRound() {
     if (this.state.mode === 'dead') this.resetRound();
     this.state.mode = 'collect';
+    this.spawnDasher();
     this.syncHud();
   }
 
@@ -332,6 +424,7 @@ export default class UpdraftScene extends Phaser.Scene {
     this.syncPlayerState();
     if (state.mode === 'collect' || state.mode === 'collapse') {
       state.elapsed += dt;
+      this.updateDasher(time);
       this.processDotCollections();
       if (state.mode === 'collapse') {
         updateCollapse(state, dt);

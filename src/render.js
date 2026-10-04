@@ -83,6 +83,39 @@ function drawPlatform(graphics, platform, state) {
   }
 }
 
+function drawDasher(graphics, state, scene) {
+  const dasher = state.enemy;
+  const visual = scene.dasherVisual;
+  if (!dasher || !visual) return;
+
+  graphics.fillStyle(0x401b22, 1);
+  graphics.fillCircle(visual.x - 4, visual.y - 2, 2);
+  graphics.fillCircle(visual.x + 4, visual.y - 2, 2);
+  graphics.fillStyle(0xffb0a3, 1);
+  graphics.fillRect(visual.x - 4, visual.y + 4, 8, 2);
+
+  if (dasher.phase !== 'telegraph' || !dasher.target) return;
+  const startX = visual.x;
+  const startY = visual.y;
+  const deltaX = dasher.target.x - startX;
+  const deltaY = dasher.target.y - startY;
+  const length = Math.hypot(deltaX, deltaY);
+  const dashLength = 14;
+  const gapLength = 12;
+  const segmentCount = Math.ceil(length / (dashLength + gapLength));
+  graphics.lineStyle(2, 0xff655f, 0.32);
+  for (let index = 0; index < segmentCount; index += 2) {
+    const startDistance = index * (dashLength + gapLength);
+    const endDistance = Math.min(length, startDistance + dashLength);
+    graphics.lineBetween(
+      startX + deltaX / length * startDistance,
+      startY + deltaY / length * startDistance,
+      startX + deltaX / length * endDistance,
+      startY + deltaY / length * endDistance
+    );
+  }
+}
+
 function drawCompass(graphics, state, scene) {
   const camera = scene.cameras.main;
   const playerX = state.player.x + state.player.w / 2 - camera.scrollX;
@@ -218,6 +251,7 @@ export function drawGame(scene, state) {
   graphics.fillRect(state.player.x + 4, state.player.y + 27, 7, 5);
   graphics.fillRect(state.player.x + 15, state.player.y + 27, 7, 5);
 
+  drawDasher(graphics, state, scene);
   scene.roundLabel.setText(`ROUND ${String(state.round).padStart(2, '0')}  /  COLLECT DOTS`);
   updateOverlay(scene, state);
   if (state.owned.compass && (state.mode === 'collect' || state.mode === 'collapse')) drawCompass(scene.uiGraphics, state, scene);

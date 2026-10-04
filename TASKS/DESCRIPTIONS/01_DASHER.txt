@@ -1,0 +1,27 @@
+ENEMY 01: DASHER
+=================
+
+Concept
+-------
+A fast enemy that announces its target, then commits to a straight dash. Players can dodge the warning rather than being tracked mid-attack.
+
+Behavior
+--------
+- On spawn, wait 2 seconds before becoming active.
+- Spawn at a random point in the area surrounding an outermost traversable platform; it does not need to spawn on a leaf platform.
+- Fly and pass through walls and platform terrain; terrain collision does not block its movement.
+- Remain completely stationary between dashes: no walking, sliding, or gravity-driven movement.
+- At the start of each attack, select and lock a target point near the player's current position.
+- Show a faint red dashed line from the enemy toward that target for 1 second.
+- After the telegraph, move in a straight line for 1 second, stopping at the locked target point.
+- During the dash, ignore gravity and other forces; do not arc, drift, or fall off the straight path.
+- Immediately begin the next 1-second telegraph after the dash; no additional cooldown.
+
+Fairness checks
+---------------
+- Do not spawn directly on or immediately beside the player.
+- Keep the telegraph visible and distinct from other effects.
+- Keep the enemy stationary for the entire telegraph and between dash actions.
+- Verify it ignores terrain collisions and gravity while dashing, follows a straight path, and stops at the target rather than overshooting.
+- Do not adjust the locked target while the enemy is dashing.
+- Test whether the dash can carry the enemy off a platform or into the void.
