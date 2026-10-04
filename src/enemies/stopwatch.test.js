@@ -21,6 +21,8 @@ test('Stopwatch spawns randomly between seven and ten seconds and starts its cou
   assert.deepEqual(advanceStopwatch(early, early.nextSpawnAt, false, () => 0), { type: 'spawn' });
   assert.equal(early.expiresAt - early.startedAt, STOPWATCH_COUNTDOWN_MS);
   assert.deepEqual(getStopwatchDisplay(early, early.startedAt), { seconds: 12, finalSecond: false });
+  assert.deepEqual(getStopwatchDisplay(early, early.startedAt + 1001), { seconds: 11, finalSecond: false });
+  assert.deepEqual(getStopwatchDisplay(early, early.expiresAt - 1000), { seconds: 1, finalSecond: true });
 });
 
 test('ordinary Stopwatch is avoided only after 200 ms without controls before expiration', () => {

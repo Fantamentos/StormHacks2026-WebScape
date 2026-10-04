@@ -25,14 +25,17 @@ ENEMY DESIGNS
 =============
 
 - [x] Implement Enemy 01: Dasher: fly and pass through walls; spawn randomly in the area surrounding an outermost traversable platform (not necessarily on a leaf); stay completely stationary between dashes; show the faint red target line for 1 second, then move in a straight, gravity-free line for 1 second and stop at the locked target; repeat without extra cooldown. Full spec: DESCRIPTIONS/01_DASHER.txt. Put implementation in src/enemies/.
+- [x] Support up to 2 active Dashers; current spawn logic removes the existing Dasher before spawning another
 - [x] Tune the Dasher's 1-second dash to slide toward its locked target: start slightly faster, then noticeably slow around the final quarter of the distance (about 0.75 seconds in); stay straight and gravity-free, and stop exactly at the target
 - [x] Add the enemy-buff modifier for the Dasher: after its normal dash, immediately telegraph a follow-up dash with the red dashed line for 0.25 seconds, then dash for 1 second; resume the normal attack cycle afterward
 - [x] Implement Enemy 02: Doppelganger: after 2 seconds, spawn at the followed entity's position from 2 seconds earlier; dark-purple player-sprite copies replay movement and damage the player on contact, encouraging constant movement and weaving between copies. Each follows the player or previous copy with a 2-second delay; base cap 3. Configurable modifier raises cap to 5. Full spec: DESCRIPTIONS/02_DOPPELGANGER.txt. Put implementation in src/enemies/.
 - [x] Add the Doppelganger's alternative 1-second follow-delay modifier to src/modifiers and wire its delayMs option (the cap-five modifier is implemented)
 - [x] Implement Enemy 03: Stopwatch: one active; first spawn 7-10 seconds into the level with no extra grace, then show a 12-second countdown above it. Avoid damage by using no controls for 0.2 seconds before time expires; this cancels the countdown and resets its randomized cooldown. Full spec: DESCRIPTIONS/03_STOPWATCH.txt. Put implementation in src/enemies/.
+- [x] Fix Stopwatch countdown display: anchor the clock at the top of the camera viewport in screen space so it stays visible with the player as the camera follows
 - [x] Implement Stopwatch's Reverse Ticking modifier in src/modifiers: count up from 1 to 12; make 12 yellow for its final second; no input for that entire second avoids damage, while any input causes damage. Ordinary idle-to-cancel behavior is disabled during this mode.
 - [x] Implement Enemy 04: Sentinel: use Dasher-style spawn grace and evasive dashes; no contact damage. Fire a small red bullet every 3 seconds at a straight-line, fixed-speed trajectory toward a randomly chosen point at the player or one of six surrounding hexagon vertices; no bullet indicator; remove it at its target. Modifier: either add one bullet per shot or increase speed and reduce target-hexagon radius for better accuracy. Full spec: DESCRIPTIONS/04_SENTINEL.txt. Put implementation in src/enemies/.
 - [x] Add Sentinel modifier options to src/modifiers and implement either the extra bullet per shot or the faster, more accurate bullet effect
+- [x] Support up to 2 active Sentinels; current scene stores and spawns only one
 
 
 PLAYER MOVEMENT
@@ -43,14 +46,15 @@ PLAYER MOVEMENT
 - [x] Make platforms one-way: pass upward through them while jumping, then land on their top surfaces while falling
 - [x] Let the player drop through the current platform with S or the down-arrow key and land on the next platform below
 - [x] Test air-jump replenishment and platform pass-through/drop-through behavior with all platform shapes
+- [x] Remove the on-screen warning that says the player is falling into the void; keep the void-fall death behavior
 
 
 UPGRADE TASKS
 =============
 
 - [x] Rename Double Jump to Double Air Jump; with one default air jump, let this upgrade grant one additional air jump (two air jumps per airtime)
-- [ ] Add Speed Rings, purchasable up to 3 times; each ring adds 10% movement speed, and the price increases with each purchase
-- [ ] Add a one-use Void Shield that saves the player from one void fall, returns them to the top of the map, and drops them back into play
+- [x] Add Speed Rings, purchasable up to 3 times; each ring adds 10% movement speed, and the price increases with each purchase
+- [x] Add a one-use Void Shield that saves the player from one void fall, returns them to the top of the map, and drops them back into play
 
 
 GAME LIFECYCLE
@@ -64,14 +68,16 @@ GAME LIFECYCLE
 INTERMISSION
 =============
 
-- [ ] Implement the intermission phase in src/phases/intermission/; pressing Enter from the start screen should enter the first intermission instead of starting gameplay directly
-- [ ] In every intermission, offer two sequential enemy-selection rounds with three choices each; choose one enemy per round and allow the same type to be picked both times
-- [ ] Define four enemy types for the selection pool: Dasher plus three placeholders for future designs
-- [ ] Apply the two selected enemy picks to the upcoming level's enemy roster
-- [ ] In the first intermission only, offer a modifier choice that buffs the selected enemies before the shop; leave the specific buff configurable for later design
-- [ ] Show the upgrade shop after enemy selection (and the first-run modifier when applicable), then begin the upcoming level
-- [ ] When a level is completed by returning to the start/exit after collapse, enter intermission before generating the next level
-- [ ] Test intermission ordering, repeated enemy picks, first-intermission-only modifier, shop flow, and level transitions
+- [x] Implement the intermission phase in src/phases/intermission/; pressing Enter from the start screen should enter the first intermission instead of starting gameplay directly
+- [x] Use four distinct enemy types in the selection pool: Dasher, Doppelganger, Stopwatch, and Sentinel; no placeholders
+- [x] Track selected enemy counts across the run and enforce caps: Dasher 2, Doppelganger 3 (or 5 with its modifier), Stopwatch 1, Sentinel 2
+- [x] In each intermission, make two sequential enemy selections for the upcoming level; offer only enemy types with remaining capacity, show fewer choices when fewer types remain, and allow repeat picks only while under that type's cap
+- [x] Apply selected enemy counts to the upcoming level's roster
+- [x] After completing levels 2 and 4, show a modifier section before the shop; randomly offer 3 distinct options from currently available modifiers, allow the player to choose at most one or skip, and grant a tunable amount of money when one is chosen
+- [x] Show the upgrade shop after enemy selection and after the level-2/4 modifier section when applicable, then begin the next level
+- [x] Set level 5 as the final level; completing its collapse and reaching the exit ends the run with a victory state instead of another intermission
+- [x] Keep the total enemy capacities attainable within the five-level run, including the Doppelganger cap-five modifier path
+- [x] Test capacity filtering, repeated picks under caps, modifier option uniqueness/skip/reward, shop ordering, and the fifth-level victory flow
 
 
 DESIGN NOTES

@@ -10,13 +10,24 @@ import { DASHER_FOLLOWUP, getDasherModifierOptions } from './modifiers/dasher.js
 import { getDoppelgangerModifierOptions } from './modifiers/doppelganger.js';
 import { getSentinelModifierOptions } from './modifiers/sentinel.js';
 import { getStopwatchModifierOptions } from './modifiers/stopwatch.js';
+import {
+  chooseIntermissionModifier,
+  completeLevel,
+  createIntermission,
+  createRunProgress,
+  getAvailableEnemyChoices,
+  getRosterCounts,
+  selectIntermissionEnemy,
+  skipIntermissionModifier
+} from './phases/intermission/intermission.js';
 import { getPlatformShape } from './platforms/index.js';
 import { canPlayerJump, hasPlayerClearedPlatformBelow, isPlayerAboveOneWaySection, landPlayer, leavePlatform } from './playerMovement.js';
 import { isGroundContact } from './matterSupport.js';
 import { dasherCollisionMask, DOT_CATEGORY, DOT_MASK, ENEMY_CATEGORY, EXIT_CATEGORY, EXIT_MASK, PLAYER_CATEGORY, PLAYER_MASK, PLATFORM_CATEGORY, PLATFORM_MASK } from './matterFilters.js';
 import { freezeMatterRun } from './phases/lifecycle/death.js';
+import { consumeVoidShield, getVoidRescuePosition } from './phases/lifecycle/voidShield.js';
 import { createSceneUi, drawGame } from './render.js';
-import { createOwnedUpgrades, purchaseUpgrade, upgrades } from './upgrades.js';
+import { createOwnedUpgrades, getRunSpeedMultiplier, purchaseUpgrade, upgrades } from './upgrades.js';
 
 const WIDTH = 960;
 const HEIGHT = 600;
@@ -44,12 +55,14 @@ export default class UpdraftScene extends Phaser.Scene {
       color: '#eef2e7',
       stroke: '#162326',
       strokeThickness: 4
-    }).setOrigin(0.5).setDepth(12).setVisible(false);
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(101).setVisible(false);
     createSceneUi(this, this.state);
     this.platformBodies = new Map();
     this.dropThroughPlatforms = new Set();
     this.groundContacts = new Map();
-    this.doppelgangerVisuals = [];
+    this.dashers = [];
+    this.doppelgangerRuns = [];
+    this.sentinels = [];
     this.sentinelBullets = [];
     this.stopwatchInputThisFrame = false;
     this.keys = this.input.keyboard.addKeys({
@@ -61,7 +74,7 @@ export default class UpdraftScene extends Phaser.Scene {
     this.bindInput();
     this.bindShopButtons();
     this.resetRound();
-    this.beginRound();
+    this.startIntermission(1);
     this.cameras.main.startFollow(this.playerVisual, true, 0.12, 0.12);
   }
 
@@ -70,6 +83,8 @@ export default class UpdraftScene extends Phaser.Scene {
     const dotsNode = document.querySelector('#dots');
     const creditsNode = document.querySelector('#credits');
     const shieldNode = document.querySelector('#shield');
+    const voidShieldNode = document.querySelector('#void-shield');
+    const runProgress = createRunProgress();
     const state = {
       width: WIDTH,
       height: HEIGHT,
@@ -78,6 +93,7 @@ export default class UpdraftScene extends Phaser.Scene {
       dotsNode,
       creditsNode,
       shieldNode,
+      voidShieldNode,
       upgrades,
       owned: createOwnedUpgrades(),
       platforms: [],
@@ -96,18 +112,20 @@ export default class UpdraftScene extends Phaser.Scene {
       currencyCollected: 0,
       currencyDotTotal: 0,
       player: { x: 0, y: 0, w: PLAYER_WIDTH, h: PLAYER_HEIGHT, vx: 0, vy: 0, grounded: false, jumps: 0, facing: 1, shieldUsed: false },
+      voidShieldUsed: false,
       playerBody: null,
       exit: null,
       exitBody: null,
       exitTouched: false,
       dotBodies: new Map(),
       collapse: null,
-      enemy: null,
-      doppelgangerRun: null,
       stopwatchRun: null,
       stopwatchPosition: null,
-      sentinel: null,
-      enemyModifiers: [DASHER_FOLLOWUP.id],
+      enemyRoster: [],
+      enemyModifiers: runProgress.enemyModifiers,
+      runProgress,
+      intermission: null,
+      intermissionChoices: [],
       playerInvulnerableUntil: 0
     };
     state.syncHud = () => this.syncHud();
@@ -180,120 +198,142 @@ export default class UpdraftScene extends Phaser.Scene {
       if (['Space', 'ArrowUp', 'KeyW'].includes(event.code)) this.jump();
       if (['ArrowDown', 'KeyS'].includes(event.code)) this.dropThrough();
       if (event.code === 'Enter') this.handleEnter();
-      if (event.code.startsWith('Digit')) purchaseUpgrade(this.state, Number(event.code.slice(5)) - 1);
+      if (event.code.startsWith('Digit')) {
+        const index = Number(event.code.slice(5)) - 1;
+        if (this.state.mode === 'intermission') this.chooseIntermissionOption(index);
+        else if (this.state.mode === 'shop') purchaseUpgrade(this.state, index);
+      }
       if (event.code === 'ShiftLeft') this.startDash();
     });
   }
 
   bindShopButtons() {
     this.shopZones = this.state.upgrades.map((upgrade, index) => {
-      const x = 126 + index * 178;
-      const zone = this.add.zone(x + 80, 360, 140, 32).setScrollFactor(0).setDepth(105).setInteractive();
+      const zone = this.add.zone(0, 0, 140, 32).setScrollFactor(0).setDepth(105).setInteractive().setVisible(false);
       zone.on('pointerdown', () => purchaseUpgrade(this.state, index));
       return zone;
+    });
+    this.shopZones.forEach((zone, index) => {
+      const column = index % 3;
+      const row = Math.floor(index / 3);
+      zone.setPosition(134 + column * 236 + 110, 192 + row * 158 + 126);
     });
   }
 
   removeDasher() {
-    if (this.dasherVisual) {
-      this.matter.world.remove(this.dasherVisual.body);
-      this.dasherVisual.destroy();
-      this.dasherVisual = null;
+    for (const dasher of this.dashers) {
+      this.matter.world.remove(dasher.visual.body);
+      dasher.visual.destroy();
     }
-    this.state.enemy = null;
+    this.dashers = [];
   }
 
-  spawnDasher() {
+  spawnDasher(count) {
     this.removeDasher();
     const state = this.state;
     const playerPosition = { x: this.playerVisual.x, y: this.playerVisual.y };
-    const spawn = chooseDasherSpawn(state.nodes, playerPosition);
-    if (!spawn) return;
+    for (let index = 0; index < count; index += 1) {
+      let spawn = null;
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        const candidate = chooseDasherSpawn(state.nodes, playerPosition);
+        if (!candidate || this.dashers.some(dasher => Math.hypot(dasher.visual.x - candidate.x, dasher.visual.y - candidate.y) < 80)) continue;
+        spawn = candidate;
+        break;
+      }
+      if (!spawn) continue;
 
-    state.enemy = createDasher(spawn.platform, spawn.x, spawn.y, this.time.now, getDasherModifierOptions(state.enemyModifiers));
-    const x = spawn.x;
-    const y = spawn.y;
-    this.dasherVisual = this.add.rectangle(x, y, 24, 24, 0xe87965).setDepth(9);
-    this.matter.add.gameObject(this.dasherVisual, {
-      shape: { type: 'rectangle', width: 24, height: 24 },
-      isSensor: true,
-      ignoreGravity: true,
-      collisionFilter: { category: ENEMY_CATEGORY, mask: dasherCollisionMask('grace') },
-      friction: 0,
-      frictionAir: 0,
-      restitution: 0,
-      inertia: Infinity,
-      label: 'dasher'
-    });
-    this.dasherVisual.setFixedRotation();
-    this.dasherVisual.body.isDasher = true;
+      const model = createDasher(spawn.platform, spawn.x, spawn.y, this.time.now, getDasherModifierOptions(state.enemyModifiers));
+      const visual = this.add.rectangle(spawn.x, spawn.y, 24, 24, 0xe87965).setDepth(9);
+      this.matter.add.gameObject(visual, {
+        shape: { type: 'rectangle', width: 24, height: 24 },
+        isSensor: true,
+        ignoreGravity: true,
+        collisionFilter: { category: ENEMY_CATEGORY, mask: dasherCollisionMask('grace') },
+        friction: 0,
+        frictionAir: 0,
+        restitution: 0,
+        inertia: Infinity,
+        label: 'dasher'
+      });
+      visual.setFixedRotation();
+      visual.body.isDasher = true;
+      visual.body.dasher = model;
+      this.dashers.push({ model, visual });
+    }
   }
 
   updateDasher(time) {
-    const dasher = this.state.enemy;
-    if (!dasher || !this.dasherVisual) return;
-    dasher.x = this.dasherVisual.x;
-    dasher.y = this.dasherVisual.y;
-    const previousPhase = dasher.phase;
-    const transition = advanceDasher(dasher, time, this.state.player, Math.random);
-    if (!transition) return;
+    for (const { model, visual } of this.dashers) {
+      model.x = visual.x;
+      model.y = visual.y;
+      const previousPhase = model.phase;
+      const transition = advanceDasher(model, time, this.state.player, Math.random);
+      if (!transition) continue;
 
-    if (transition.type === 'telegraph') {
-      if (previousPhase === 'dash' || previousPhase === 'followupDash') {
-        this.dasherVisual.setPosition(dasher.x, dasher.y);
-        this.matter.setVelocity(this.dasherVisual, 0, 0);
+      if (transition.type === 'telegraph') {
+        if (previousPhase === 'dash' || previousPhase === 'followupDash') {
+          visual.setPosition(model.x, model.y);
+          this.matter.setVelocity(visual, 0, 0);
+        }
+        visual.body.collisionFilter.mask = dasherCollisionMask('telegraph');
+      } else if (transition.type === 'dash-start') {
+        visual.body.collisionFilter.mask = dasherCollisionMask(transition.phase);
+      } else if (transition.type === 'move') {
+        visual.setPosition(transition.position.x, transition.position.y);
       }
-      this.dasherVisual.body.collisionFilter.mask = dasherCollisionMask('telegraph');
-    } else if (transition.type === 'dash-start') {
-      this.dasherVisual.body.collisionFilter.mask = dasherCollisionMask(transition.phase);
-    } else if (transition.type === 'move') {
-      this.dasherVisual.setPosition(transition.position.x, transition.position.y);
     }
   }
 
   clearDoppelgangers() {
-    for (const visual of this.doppelgangerVisuals) {
-      this.matter.world.remove(visual.body);
-      visual.destroy();
+    for (const entry of this.doppelgangerRuns) {
+      for (const visual of entry.visuals) {
+        this.matter.world.remove(visual.body);
+        visual.destroy();
+      }
     }
-    this.doppelgangerVisuals = [];
-    this.state.doppelgangerRun = null;
+    this.doppelgangerRuns = [];
   }
 
-  startDoppelgangers(time = this.time.now) {
+  startDoppelgangers(count, time = this.time.now) {
     this.clearDoppelgangers();
     const options = getDoppelgangerModifierOptions(this.state.enemyModifiers);
-    this.state.doppelgangerRun = createDoppelgangerRun(time, {
-      x: this.playerVisual.x,
-      y: this.playerVisual.y
-    }, options);
+    for (let index = 0; index < count; index += 1) {
+      this.doppelgangerRuns.push({
+        run: createDoppelgangerRun(time, { x: this.playerVisual.x, y: this.playerVisual.y }, options),
+        visuals: []
+      });
+    }
   }
 
   updateDoppelgangers(time) {
-    const run = this.state.doppelgangerRun;
-    if (!run) return;
-    const copies = advanceDoppelgangerRun(run, time, {
-      x: this.playerVisual.x,
-      y: this.playerVisual.y
-    });
-
-    while (this.doppelgangerVisuals.length < copies.length) {
-      const copy = copies[this.doppelgangerVisuals.length];
-      const visual = this.add.rectangle(copy.x, copy.y, PLAYER_WIDTH, PLAYER_HEIGHT, 0x49265d).setDepth(9).setAlpha(0);
-      this.matter.add.gameObject(visual, {
-        shape: { type: 'rectangle', width: PLAYER_WIDTH, height: PLAYER_HEIGHT },
-        isStatic: true,
-        isSensor: true,
-        collisionFilter: { category: ENEMY_CATEGORY, mask: PLAYER_CATEGORY },
-        label: `doppelganger:${copy.id}`
+    let totalCopies = 0;
+    const bodyStates = [];
+    for (const entry of this.doppelgangerRuns) {
+      const copies = advanceDoppelgangerRun(entry.run, time, {
+        x: this.playerVisual.x,
+        y: this.playerVisual.y
       });
-      visual.body.isDoppelganger = true;
-      this.doppelgangerVisuals.push(visual);
-    }
 
-    copies.forEach((copy, index) => this.doppelgangerVisuals[index].setPosition(copy.x, copy.y));
-    this.state.phaseNode.dataset.doppelgangerCount = String(copies.length);
-    this.state.phaseNode.dataset.doppelgangerBody = this.doppelgangerVisuals.map(visual => `${visual.x},${visual.y},${visual.body.isStatic},${visual.body.isSensor},${visual.body.collisionFilter.category},${visual.body.collisionFilter.mask}`).join(';');
+      while (entry.visuals.length < copies.length) {
+        const copy = copies[entry.visuals.length];
+        const visual = this.add.rectangle(copy.x, copy.y, PLAYER_WIDTH, PLAYER_HEIGHT, 0x49265d).setDepth(9).setAlpha(0);
+        this.matter.add.gameObject(visual, {
+          shape: { type: 'rectangle', width: PLAYER_WIDTH, height: PLAYER_HEIGHT },
+          isStatic: true,
+          isSensor: true,
+          collisionFilter: { category: ENEMY_CATEGORY, mask: PLAYER_CATEGORY },
+          label: `doppelganger:${copy.id}`
+        });
+        visual.body.isDoppelganger = true;
+        entry.visuals.push(visual);
+      }
+
+      copies.forEach((copy, index) => entry.visuals[index].setPosition(copy.x, copy.y));
+      totalCopies += copies.length;
+      bodyStates.push(...entry.visuals.map(visual => `${visual.x},${visual.y},${visual.body.isStatic},${visual.body.isSensor},${visual.body.collisionFilter.category},${visual.body.collisionFilter.mask}`));
+    }
+    this.state.phaseNode.dataset.doppelgangerCount = String(totalCopies);
+    this.state.phaseNode.dataset.doppelgangerBody = bodyStates.join(';');
   }
 
   clearStopwatch() {
@@ -334,7 +374,7 @@ export default class UpdraftScene extends Phaser.Scene {
     this.stopwatchTimer
       .setText(String(display.seconds))
       .setColor(display.finalSecond ? '#ffd16d' : '#eef2e7')
-      .setPosition(position.x, position.y - 32)
+      .setPosition(WIDTH / 2, 22)
       .setVisible(true);
   }
 
@@ -356,62 +396,68 @@ export default class UpdraftScene extends Phaser.Scene {
 
   removeSentinel() {
     this.clearSentinelBullets();
-    if (this.sentinelVisual) {
-      this.matter.world.remove(this.sentinelVisual.body);
-      this.sentinelVisual.destroy();
-      this.sentinelVisual = null;
+    for (const sentinel of this.sentinels) {
+      this.matter.world.remove(sentinel.visual.body);
+      sentinel.visual.destroy();
     }
-    this.state.sentinel = null;
+    this.sentinels = [];
   }
 
-  spawnSentinel() {
+  spawnSentinel(count) {
     this.removeSentinel();
-    const spawn = chooseDasherSpawn(this.state.nodes, {
-      x: this.playerVisual.x,
-      y: this.playerVisual.y
-    });
-    if (!spawn) return;
+    const playerPosition = { x: this.playerVisual.x, y: this.playerVisual.y };
+    for (let index = 0; index < count; index += 1) {
+      let spawn = null;
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        const candidate = chooseDasherSpawn(this.state.nodes, playerPosition);
+        if (!candidate || this.sentinels.some(sentinel => Math.hypot(sentinel.visual.x - candidate.x, sentinel.visual.y - candidate.y) < 80)) continue;
+        spawn = candidate;
+        break;
+      }
+      if (!spawn) continue;
 
-    this.state.sentinel = createSentinel(
-      spawn.platform,
-      spawn.x,
-      spawn.y,
-      this.time.now,
-      getSentinelModifierOptions(this.state.enemyModifiers)
-    );
-    this.sentinelVisual = this.add.rectangle(spawn.x, spawn.y, 26, 22, 0xd5a64e).setDepth(9);
-    this.matter.add.gameObject(this.sentinelVisual, {
-      shape: { type: 'rectangle', width: 26, height: 22 },
-      isStatic: true,
-      isSensor: true,
-      collisionFilter: { category: ENEMY_CATEGORY, mask: 0 },
-      label: 'sentinel'
-    });
-    this.sentinelVisual.body.isSentinel = true;
+      const model = createSentinel(
+        spawn.platform,
+        spawn.x,
+        spawn.y,
+        this.time.now,
+        getSentinelModifierOptions(this.state.enemyModifiers)
+      );
+      const visual = this.add.rectangle(spawn.x, spawn.y, 26, 22, 0xd5a64e).setDepth(9);
+      this.matter.add.gameObject(visual, {
+        shape: { type: 'rectangle', width: 26, height: 22 },
+        isStatic: true,
+        isSensor: true,
+        collisionFilter: { category: ENEMY_CATEGORY, mask: 0 },
+        label: 'sentinel'
+      });
+      visual.body.isSentinel = true;
+      this.sentinels.push({ model, visual });
+    }
   }
 
   updateSentinel(time, delta) {
-    const sentinel = this.state.sentinel;
-    if (!sentinel || !this.sentinelVisual) return;
-    const update = advanceSentinel(sentinel, time, {
-      x: this.playerVisual.x,
-      y: this.playerVisual.y
-    });
-    this.sentinelVisual.setPosition(update.position.x, update.position.y);
-
-    for (const bullet of update.bullets) {
-      const visual = this.add.circle(bullet.x, bullet.y, bullet.radius, 0xf16e5d).setDepth(9);
-      this.matter.add.gameObject(visual, {
-        shape: { type: 'circle', radius: bullet.radius },
-        isStatic: true,
-        isSensor: true,
-        collisionFilter: { category: ENEMY_CATEGORY, mask: PLAYER_CATEGORY },
-        label: 'sentinel-bullet'
+    for (const { model, visual: sentinelVisual } of this.sentinels) {
+      const update = advanceSentinel(model, time, {
+        x: this.playerVisual.x,
+        y: this.playerVisual.y
       });
-      const entry = { model: bullet, visual };
-      visual.body.isSentinelBullet = true;
-      visual.body.sentinelBullet = entry;
-      this.sentinelBullets.push(entry);
+      sentinelVisual.setPosition(update.position.x, update.position.y);
+
+      for (const bullet of update.bullets) {
+        const visual = this.add.circle(bullet.x, bullet.y, bullet.radius, 0xf16e5d).setDepth(9);
+        this.matter.add.gameObject(visual, {
+          shape: { type: 'circle', radius: bullet.radius },
+          isStatic: true,
+          isSensor: true,
+          collisionFilter: { category: ENEMY_CATEGORY, mask: PLAYER_CATEGORY },
+          label: 'sentinel-bullet'
+        });
+        const entry = { model: bullet, visual };
+        visual.body.isSentinelBullet = true;
+        visual.body.sentinelBullet = entry;
+        this.sentinelBullets.push(entry);
+      }
     }
 
     for (let index = this.sentinelBullets.length - 1; index >= 0; index -= 1) {
@@ -426,7 +472,7 @@ export default class UpdraftScene extends Phaser.Scene {
 
   handleEnemyHit(enemyBody) {
     const state = this.state;
-    if (enemyBody.isDasher && (!state.enemy || !['dash', 'followupDash'].includes(state.enemy.phase))) return;
+    if (enemyBody.isDasher && !['dash', 'followupDash'].includes(enemyBody.dasher.phase)) return;
     if (this.time.now < state.playerInvulnerableUntil) return;
     if (!state.player.shieldUsed) {
       state.player.shieldUsed = true;
@@ -442,12 +488,73 @@ export default class UpdraftScene extends Phaser.Scene {
 
   handleEnter() {
     if (this.state.mode === 'shop') {
-      this.state.round += 1;
-      this.resetRound();
       this.beginRound();
-    } else if (this.state.mode === 'ready' || this.state.mode === 'dead') {
+    } else if (this.state.mode === 'intermission' && this.state.intermission?.stage === 'modifier') {
+      this.skipIntermissionModifier();
+    } else if (this.state.mode === 'dead') {
       this.beginRound();
     }
+  }
+
+  startIntermission(level) {
+    this.state.intermission = createIntermission(this.state.runProgress, level);
+    this.state.enemyRoster = [];
+    this.refreshIntermissionStage();
+    this.matter.world.pause();
+  }
+
+  refreshIntermissionStage() {
+    const state = this.state;
+    const intermission = state.intermission;
+    if (!intermission) return;
+    if (intermission.stage === 'enemies') {
+      state.intermissionChoices = getAvailableEnemyChoices(state.runProgress);
+      state.mode = 'intermission';
+    } else if (intermission.stage === 'modifier') {
+      state.intermissionChoices = intermission.modifierOptions;
+      state.mode = 'intermission';
+    } else {
+      state.intermissionChoices = [];
+      state.enemyRoster = [...intermission.roster];
+      state.mode = 'shop';
+    }
+    this.syncHud();
+    drawGame(this, state);
+  }
+
+  chooseIntermissionOption(index) {
+    const state = this.state;
+    const intermission = state.intermission;
+    const choice = state.intermissionChoices[index];
+    if (state.mode !== 'intermission' || !intermission || !choice) return;
+
+    if (intermission.stage === 'enemies') {
+      selectIntermissionEnemy(state.runProgress, intermission, choice.id);
+    } else if (intermission.stage === 'modifier') {
+      state.credits += chooseIntermissionModifier(state.runProgress, intermission, choice.id);
+    }
+    this.refreshIntermissionStage();
+  }
+
+  skipIntermissionModifier() {
+    if (skipIntermissionModifier(this.state.intermission)) this.refreshIntermissionStage();
+  }
+
+  advanceAfterLevelComplete() {
+    const state = this.state;
+    const result = completeLevel(state.runProgress, state.round);
+    if (result.type === 'victory') {
+      state.mode = 'victory';
+      this.matter.setVelocity(this.playerVisual, 0, 0);
+      this.playerVisual.setStatic(true);
+      this.matter.world.pause();
+      this.syncHud();
+      return;
+    }
+
+    state.round = result.level;
+    this.resetRound();
+    this.startIntermission(result.level);
   }
 
   jump() {
@@ -643,16 +750,26 @@ export default class UpdraftScene extends Phaser.Scene {
 
   beginRound() {
     if (this.state.mode === 'dead') this.resetRound();
+    this.matter.world.resume();
     this.state.mode = 'collect';
-    this.spawnDasher();
-    this.startDoppelgangers();
-    this.startStopwatch();
-    this.spawnSentinel();
+    const rosterCounts = getRosterCounts(this.state.enemyRoster);
+    this.spawnDasher(rosterCounts.dasher);
+    this.startDoppelgangers(rosterCounts.doppelganger);
+    if (rosterCounts.stopwatch) this.startStopwatch();
+    else this.clearStopwatch();
+    this.spawnSentinel(rosterCounts.sentinel);
     this.syncHud();
   }
 
   freezeRun() {
-    if (freezeMatterRun(this.state, this.matter, this.playerVisual, this.dasherVisual, this.matter.world)) this.syncHud();
+    const primaryDasher = this.dashers[0]?.visual.body || null;
+    if (!freezeMatterRun(this.state, this.matter, this.playerVisual, primaryDasher, this.matter.world)) return;
+    for (const { visual } of this.dashers.slice(1)) {
+      this.matter.setVelocity(visual, 0, 0);
+      visual.setIgnoreGravity(true);
+      visual.setStatic(true);
+    }
+    this.syncHud();
   }
 
   startCollapse() {
@@ -670,6 +787,33 @@ export default class UpdraftScene extends Phaser.Scene {
     startCollapseWaves(state);
     state.messageTimer = 2;
     this.syncHud();
+  }
+
+  rescueFromVoid() {
+    const state = this.state;
+    const rescue = getVoidRescuePosition(state.platforms, PLAYER_HEIGHT);
+    if (!rescue || !consumeVoidShield(state)) return false;
+
+    this.matter.world.resume();
+    this.playerVisual.setStatic(false);
+    this.playerVisual.setIgnoreGravity(false);
+    this.playerVisual.setPosition(rescue.x, rescue.y);
+    this.playerVisual.setAngle(0);
+    this.matter.setVelocity(this.playerVisual, 0, 2);
+    this.groundContacts.clear();
+    this.dropThroughPlatforms.clear();
+    this.dashUntil = 0;
+    Object.assign(state.player, {
+      x: rescue.x - PLAYER_WIDTH / 2,
+      y: rescue.y - PLAYER_HEIGHT / 2,
+      vx: 0,
+      vy: 120,
+      grounded: false,
+      jumps: 0,
+      groundY: rescue.groundY
+    });
+    this.syncHud();
+    return true;
   }
 
   syncPlayerState() {
@@ -720,17 +864,17 @@ export default class UpdraftScene extends Phaser.Scene {
       const direction = Number(right) - Number(left);
       if (direction) state.player.facing = direction;
       if (time < (this.dashUntil || 0)) this.matter.setVelocityX(this.playerVisual, state.player.facing * DASH_SPEED);
-      else this.matter.setVelocityX(this.playerVisual, direction * RUN_SPEED);
+      else this.matter.setVelocityX(this.playerVisual, direction * RUN_SPEED * getRunSpeedMultiplier(state));
 
       if (state.player.y + PLAYER_HEIGHT - state.player.groundY > VOID_DEATH_DEPTH) {
-        this.freezeRun();
+        if (!this.rescueFromVoid()) this.freezeRun();
         drawGame(this, state);
         return;
       }
 
       if (state.mode === 'collapse' && state.exitTouched) {
-        state.mode = 'shop';
         state.exitTouched = false;
+        this.advanceAfterLevelComplete();
       }
       state.messageTimer = Math.max(0, state.messageTimer - dt);
       this.syncHud();
@@ -740,7 +884,7 @@ export default class UpdraftScene extends Phaser.Scene {
 
   syncHud() {
     const state = this.state;
-    const labels = { ready: 'Ready', collect: 'Collect', collapse: 'Collapse!', shop: 'Upgrade', dead: 'Run over', escaped: 'Cleared' };
+    const labels = { ready: 'Ready', intermission: 'Intermission', collect: 'Collect', collapse: 'Collapse!', shop: 'Upgrade', dead: 'Run over', victory: 'Victory' };
     state.phaseNode.textContent = labels[state.mode] || 'Ready';
     const collectingCurrency = state.mode === 'collapse';
     const count = collectingCurrency ? state.currencyCollected : state.normalCollected;
@@ -748,5 +892,10 @@ export default class UpdraftScene extends Phaser.Scene {
     state.dotsNode.innerHTML = `${count} <small>/ ${total}</small>`;
     state.creditsNode.textContent = state.credits;
     state.shieldNode.textContent = state.player.shieldUsed ? 'Spent' : 'Ready';
+    state.voidShieldNode.textContent = !state.owned.voidShield
+      ? 'Not owned'
+      : state.voidShieldUsed
+        ? 'Spent'
+        : 'Ready';
   }
 }
