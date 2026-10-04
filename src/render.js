@@ -94,7 +94,7 @@ function drawDasher(graphics, state, scene) {
   graphics.fillStyle(0xffb0a3, 1);
   graphics.fillRect(visual.x - 4, visual.y + 4, 8, 2);
 
-  if (dasher.phase !== 'telegraph' || !dasher.target) return;
+  if (!['telegraph', 'followupTelegraph'].includes(dasher.phase) || !dasher.target) return;
   const startX = visual.x;
   const startY = visual.y;
   const deltaX = dasher.target.x - startX;

@@ -2,8 +2,9 @@ import Phaser from 'phaser';
 import { startCollapseWaves, updateCollapse } from './phases/collapse/collapse.js';
 import { createPlatformDots, rewardDot } from './dots.js';
 import { advanceDasher, chooseDasherSpawn, createDasher } from './enemies/dasher.js';
-import { advanceDoppelgangerRun, createDoppelgangerRun, DOPPELGANGER_BUFFED_MAX_COUNT } from './enemies/doppelganger.js';
+import { advanceDoppelgangerRun, createDoppelgangerRun } from './enemies/doppelganger.js';
 import { generateLevel } from './map.js';
+import { ENEMY_MODIFIER_IDS, getDasherModifierOptions, getDoppelgangerModifierOptions } from './modifiers/enemyModifiers.js';
 import { getPlatformShape } from './platforms/index.js';
 import { isGroundContact } from './matterSupport.js';
 import { dasherCollisionMask, DOT_CATEGORY, DOT_MASK, ENEMY_CATEGORY, EXIT_CATEGORY, EXIT_MASK, PLAYER_CATEGORY, PLAYER_MASK, PLATFORM_CATEGORY, PLATFORM_MASK } from './matterFilters.js';
@@ -87,7 +88,7 @@ export default class UpdraftScene extends Phaser.Scene {
       collapse: null,
       enemy: null,
       doppelgangerRun: null,
-      enemyModifier: null,
+      enemyModifiers: [ENEMY_MODIFIER_IDS.DASHER_FOLLOWUP],
       playerInvulnerableUntil: 0
     };
     state.syncHud = () => this.syncHud();
@@ -129,7 +130,6 @@ export default class UpdraftScene extends Phaser.Scene {
           continue;
         }
         if (other.isDoppelganger) {
-          this.state.shieldNode.dataset.doppelgangerContact = String(Number(this.state.shieldNode.dataset.doppelgangerContact || 0) + 1);
           this.handleEnemyHit(other);
           continue;
         }
@@ -183,7 +183,7 @@ export default class UpdraftScene extends Phaser.Scene {
     const spawn = chooseDasherSpawn(state.nodes, playerPosition);
     if (!spawn) return;
 
-    state.enemy = createDasher(spawn.platform, spawn.x, spawn.y, this.time.now);
+    state.enemy = createDasher(spawn.platform, spawn.x, spawn.y, this.time.now, getDasherModifierOptions(state.enemyModifiers));
     const x = spawn.x;
     const y = spawn.y;
     this.dasherVisual = this.add.rectangle(x, y, 24, 24, 0xe87965).setDepth(9);
@@ -212,14 +212,15 @@ export default class UpdraftScene extends Phaser.Scene {
     if (!transition) return;
 
     if (transition.type === 'telegraph') {
-      if (previousPhase === 'dash') {
+      if (previousPhase === 'dash' || previousPhase === 'followupDash') {
         this.dasherVisual.setPosition(dasher.x, dasher.y);
         this.matter.setVelocity(this.dasherVisual, 0, 0);
       }
       this.dasherVisual.body.collisionFilter.mask = dasherCollisionMask('telegraph');
-    } else if (transition.type === 'dash') {
-      this.dasherVisual.body.collisionFilter.mask = dasherCollisionMask('dash');
-      this.matter.setVelocity(this.dasherVisual, transition.velocity.x, transition.velocity.y);
+    } else if (transition.type === 'dash-start') {
+      this.dasherVisual.body.collisionFilter.mask = dasherCollisionMask(transition.phase);
+    } else if (transition.type === 'move') {
+      this.dasherVisual.setPosition(transition.position.x, transition.position.y);
     }
   }
 
@@ -234,9 +235,7 @@ export default class UpdraftScene extends Phaser.Scene {
 
   startDoppelgangers(time = this.time.now) {
     this.clearDoppelgangers();
-    const options = this.state.enemyModifier === 'doppelganger-cap-five'
-      ? { maxCount: DOPPELGANGER_BUFFED_MAX_COUNT }
-      : {};
+    const options = getDoppelgangerModifierOptions(this.state.enemyModifiers);
     this.state.doppelgangerRun = createDoppelgangerRun(time, {
       x: this.playerVisual.x,
       y: this.playerVisual.y
@@ -272,7 +271,7 @@ export default class UpdraftScene extends Phaser.Scene {
 
   handleEnemyHit(enemyBody) {
     const state = this.state;
-    if (enemyBody.isDasher && (!state.enemy || state.enemy.phase !== 'dash')) return;
+    if (enemyBody.isDasher && (!state.enemy || !['dash', 'followupDash'].includes(state.enemy.phase))) return;
     if (this.time.now < state.playerInvulnerableUntil) return;
     if (!state.player.shieldUsed) {
       state.player.shieldUsed = true;

@@ -1,0 +1,33 @@
+ENEMY 04: SENTINEL
+==================
+
+Concept
+-------
+A mobile ranged enemy that avoids the player and fires small, visible red bullets along straight paths. It does not damage the player on contact.
+
+Spawn and movement
+------------------
+- Reuse the Dasher's spawn setup: 2-second grace period and a random spawn point in the area around an outermost traversable platform.
+- Reuse the Dasher's flight/dash movement rules, including passing through terrain and staying stationary between dashes.
+- Choose dash targets that increase distance from the player; use the Dasher-style movement telegraph before repositioning.
+- Contact with the Sentinel does not damage the player.
+
+Ranged attack
+-------------
+- Fire once every 3 seconds.
+- Each bullet travels in a straight line at a fixed speed slower than the Dasher's dash speed; gravity and other forces do not bend its path.
+- Make bullets small red dots, smaller than collectible dots but still easy to see.
+- At each shot, randomly choose one target point: the player's current position or one of six vertices on a hexagon surrounding the player.
+- Lock the chosen point when fired; show no path indicator for bullets.
+- Remove the bullet when it reaches its target point.
+
+Modifier options
+----------------
+Choose one buff:
+- Fire one additional bullet per shot.
+- Increase fixed bullet speed and improve accuracy by reducing the radius of the target hexagon.
+
+Implementation questions
+------------------------
+- Determine the Sentinel's maximum active count.
+- Define how far from the player the Sentinel tries to stay and how it picks a safe dash destination.

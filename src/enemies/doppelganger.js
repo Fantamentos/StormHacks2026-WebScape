@@ -1,7 +1,6 @@
 export const DOPPELGANGER_SPAWN_DELAY_MS = 2000;
 export const DOPPELGANGER_FOLLOW_DELAY_MS = 2000;
 export const DOPPELGANGER_MAX_COUNT = 3;
-export const DOPPELGANGER_BUFFED_MAX_COUNT = 5;
 
 function appendPosition(history, time, position) {
   const sample = { time, x: position.x, y: position.y };

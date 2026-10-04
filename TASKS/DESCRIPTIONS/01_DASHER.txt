@@ -17,6 +17,12 @@ Behavior
 - During the dash, ignore gravity and other forces; do not arc, drift, or fall off the straight path.
 - Immediately begin the next 1-second telegraph after the dash; no additional cooldown.
 
+Enemy-buff modifier
+-------------------
+- After the normal dash, show a follow-up red dashed-line telegraph for 0.25 seconds.
+- Then perform one additional 1-second dash to the locked target.
+- Resume the normal 1-second telegraph and dash cycle afterward.
+
 Fairness checks
 ---------------
 - Do not spawn directly on or immediately beside the player.

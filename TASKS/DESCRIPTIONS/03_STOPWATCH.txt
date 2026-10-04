@@ -10,12 +10,20 @@ Behavior
 - Maximum active number: 1.
 - Spawn 7-10 seconds after the level begins, with the delay randomized.
 - No additional spawn grace period; begin the enemy's cooldown/countdown immediately when it spawns.
-- Show an 8-second countdown above the enemy.
+- Show a 12-second countdown above the enemy.
 - If the countdown reaches zero before the player has been idle for 0.2 seconds, damage the player.
 - If the player gives no control input for 0.2 seconds before the countdown expires, cancel the countdown and reset the randomized cooldown.
 
+Enemy-buff modifier: Reverse Ticking
+------------------------------------
+- Count upward from 1 to 12 instead of counting down.
+- Idling during the count does not cancel or reset it.
+- During the final second, display 12 in yellow to signal that the player must stop.
+- The player must give no control input for the entire yellow second to avoid damage; otherwise, deal damage when that second ends.
+- After a successful stop, restart the count at 1.
+
 Implementation notes
 --------------------
-- Display the remaining countdown time above the enemy and keep it readable during play.
+- Display the current countdown number above the enemy and keep it readable during play.
 - Treat movement, jump, dash, and other player controls as input for the idle check.
 - Keep the enemy count capped at one.

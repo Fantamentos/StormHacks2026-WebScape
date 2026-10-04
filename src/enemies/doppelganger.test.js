@@ -3,12 +3,12 @@ import test from 'node:test';
 import {
   advanceDoppelgangerRun,
   createDoppelgangerRun,
-  DOPPELGANGER_BUFFED_MAX_COUNT,
   DOPPELGANGER_FOLLOW_DELAY_MS,
   DOPPELGANGER_MAX_COUNT,
   DOPPELGANGER_SPAWN_DELAY_MS,
   samplePosition
 } from './doppelganger.js';
+import { DOPPELGANGER_BUFFED_MAX_COUNT } from '../modifiers/enemyModifiers.js';
 
 test('history sampling interpolates between recorded player positions', () => {
   assert.deepEqual(samplePosition([{ time: 0, x: 0, y: 20 }, { time: 1000, x: 100, y: 40 }], 500), { x: 50, y: 30 });

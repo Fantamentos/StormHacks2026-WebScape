@@ -10,7 +10,7 @@ export const DOT_MASK = PLAYER_CATEGORY;
 export const EXIT_MASK = PLAYER_CATEGORY;
 
 export function dasherCollisionMask(phase) {
-  return phase === 'dash' ? PLAYER_CATEGORY : 0;
+  return phase === 'dash' || phase === 'followupDash' ? PLAYER_CATEGORY : 0;
 }
 
 export function filtersAllowCollision(first, second) {
