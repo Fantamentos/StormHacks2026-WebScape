@@ -16,6 +16,8 @@ test('level graphs grow with four two-route branches and connected BFS routes', 
     assert.ok(map.nodes.every(node => PLATFORM_SHAPES.some(shape => shape.type === node.shape)));
     assert.ok(map.nodes.every(node => node.w === PLATFORM_SHAPES.find(shape => shape.type === node.shape).width));
     assert.equal(map.root.childIds.length, 4);
+    assert.equal(map.root.shape, 'standard');
+    assert.ok(map.root.childIds.every(id => map.byId.get(id).shape === 'standard' && map.byId.get(id).w === 124));
     assert.ok(map.root.childIds.every(id => map.byId.get(id).childIds.length === 2));
     assert.ok(map.nodes.filter(node => node !== map.root).every(node => node.childIds.length <= 2));
     assert.ok(map.nodes.some(node => node.optionalStep));
@@ -28,7 +30,8 @@ test('level graphs grow with four two-route branches and connected BFS routes', 
       if (!node.parentId) continue;
       const parent = map.byId.get(node.parentId);
       const gapX = Math.max(0, node.x - (parent.x + parent.w), parent.x - (node.x + node.w));
-      if (gapX > 0) assert.ok(gapX >= 36 && gapX <= 48, `${parent.id}/${node.id} has ${gapX}px horizontal clearance`);
+      if (gapX > 0 && parent === map.root) assert.ok(gapX >= 56 && gapX <= 72, `${parent.id}/${node.id} should remain inside the start jump envelope`);
+      else if (gapX > 0) assert.ok(gapX >= 36 && gapX <= 48, `${parent.id}/${node.id} has ${gapX}px horizontal clearance`);
     }
 
     for (let first = 0; first < map.nodes.length; first += 1) {
@@ -94,4 +97,24 @@ test('angled ramp bodies are generated as connected map route nodes', () => {
   assert.notEqual(rampShape.angle, 0);
   assert.ok(rampShape.bodySections.length > 0);
   assert.ok(map.nodes.some(node => node.shape === 'ramp' && node.angle !== 0));
+});
+
+test('seeded maps vary reachable root branch positions reproducibly', () => {
+  const first = generateLevel(2, 21);
+  const sameSeed = generateLevel(2, 21);
+  const otherSeed = generateLevel(2, 22);
+  const rootPositions = map => map.root.childIds.map(id => {
+    const node = map.byId.get(id);
+    return [node.x, node.y];
+  });
+
+  assert.equal(first.attempt, 0);
+  assert.deepEqual(rootPositions(first), rootPositions(sameSeed));
+  assert.notDeepEqual(rootPositions(first), rootPositions(otherSeed));
+  for (const id of first.root.childIds) {
+    const child = first.byId.get(id);
+    const verticalDistance = Math.abs(child.y - first.root.y);
+    if (child.branch.x !== 0) assert.ok(verticalDistance >= 42 && verticalDistance <= 66);
+    else assert.equal(verticalDistance, 82);
+  }
 });

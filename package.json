@@ -13,6 +13,7 @@
     "vite": "^7.0.0"
   },
   "dependencies": {
+    "matter-js": "^0.20.0",
     "phaser": "^3.90.0"
   }
 }

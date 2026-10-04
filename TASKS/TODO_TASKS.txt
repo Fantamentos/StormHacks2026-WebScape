@@ -1,8 +1,15 @@
 TODO
 ====
 
-- [ ] HIGH PRIORITY: Fix the bug that prevents the player from jumping
+- [x] HIGH PRIORITY: Fix the bug that prevents the player from jumping
+- [x] Revamp map generation to choose seeded random branch directions from positions reachable with the player's jump physics
+- [x] Reject candidate platforms that overlap or violate minimum clearance with any nearby platform
+- [x] Retry rejected seeded map layouts and use a validated fixed fallback after the bounded attempts
+- [x] Try another clear leaf branch when an optional floating step does not fit
+- [ ] If a main branch cannot fit another child after retries, continue expansion from a different branch node with room for children
+- [ ] Validate randomized platform placements with actual movement physics and ensure routes back to the start remain possible
 - [ ] Decide collapse speed: warning time, gap time, wave size; consider faster waves in later rounds (constants in src/collapse.js)
+- [x] Use standard-shape, standard-size platforms for all platforms directly adjacent to the start platform
 - [ ] Validate smooth walking and route reachability across ramp-to-platform transitions
 - [ ] Later add moving platforms; account for timing in reachability and give a clear warning before they collapse
 - [ ] Later add ziplines between platforms; decide whether they work one-way or both ways and what happens if an endpoint collapses

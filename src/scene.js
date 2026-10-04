@@ -3,6 +3,7 @@ import { startCollapseWaves, updateCollapse } from './collapse.js';
 import { createPlatformDots, rewardDot } from './dots.js';
 import { generateLevel } from './map.js';
 import { getPlatformShape } from './platforms/index.js';
+import { isGroundContact } from './matterSupport.js';
 import { createSceneUi, drawGame } from './render.js';
 import { createOwnedUpgrades, purchaseUpgrade, upgrades } from './upgrades.js';
 
@@ -114,8 +115,7 @@ export default class UpdraftScene extends Phaser.Scene {
           continue;
         }
         if (!other.platformNode) continue;
-        const surfaceNormal = playerIsA ? pair.collision.normal.y : -pair.collision.normal.y;
-        if (surfaceNormal < 0.35) continue;
+        if (!isGroundContact(pair, this.state.playerBody)) continue;
         this.groundContacts.set(pair.id, other.platformNode);
         this.state.player.groundY = this.playerVisual.y + PLAYER_HEIGHT / 2;
         this.state.player.grounded = true;
