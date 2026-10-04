@@ -2,7 +2,7 @@ TODO
 ====
 
 - [x] HIGH PRIORITY: Fix the bug that prevents the player from jumping
-- [ ] Reduce the player sprite's height while keeping its width unchanged
+- [x] Reduce the player sprite's height while keeping its width unchanged
 - [x] Revamp map generation to choose seeded random branch directions from positions reachable with the player's jump physics
 - [x] Reject candidate platforms that overlap or violate minimum clearance with any nearby platform
 - [x] Retry rejected seeded map layouts and use a validated fixed fallback after the bounded attempts
@@ -38,10 +38,19 @@ ENEMY DESIGNS
 PLAYER MOVEMENT
 ===============
 
-- [ ] Allow one air jump per time in the air, in addition to the regular platform jump; replenish the air jump when landing on a platform
-- [ ] Make platforms one-way: pass upward through them while jumping, then land on their top surfaces while falling
-- [ ] Let the player drop through the current platform with S or the down-arrow key and land on the next platform below
-- [ ] Test air-jump replenishment and platform pass-through/drop-through behavior with all platform shapes
+- [x] Allow one air jump per time in the air, in addition to the regular platform jump; replenish the air jump when landing on a platform
+- [x] Give the player one air jump by default at the start of each run; replenish it when landing on a platform
+- [x] Make platforms one-way: pass upward through them while jumping, then land on their top surfaces while falling
+- [x] Let the player drop through the current platform with S or the down-arrow key and land on the next platform below
+- [x] Test air-jump replenishment and platform pass-through/drop-through behavior with all platform shapes
+
+
+UPGRADE TASKS
+=============
+
+- [x] Rename Double Jump to Double Air Jump; with one default air jump, let this upgrade grant one additional air jump (two air jumps per airtime)
+- [ ] Add Speed Rings, purchasable up to 3 times; each ring adds 10% movement speed, and the price increases with each purchase
+- [ ] Add a one-use Void Shield that saves the player from one void fall, returns them to the top of the map, and drops them back into play
 
 
 GAME LIFECYCLE
@@ -80,7 +89,9 @@ UPGRADES
 | Upgrade       | Effect                                                    |
 | ------------- | --------------------------------------------------------- |
 | Shield        | Absorbs one enemy or spike hit, then breaks               |
-| Double jump   | Helps reach dots and escape danger                        |
+| Double Air Jump | Grants one additional mid-air jump                     |
+| Speed Ring    | Each ring adds 10% movement speed; stack up to 3         |
+| Void Shield   | Saves one void fall; returns the player to the map top and drops them back in |
 | Dash          | Short burst of movement                                   |
 | Dot magnet    | Collects nearby dots                                      |
 | Slow collapse | Delays or slows the shrinking boundary                    |

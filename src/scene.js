@@ -11,6 +11,7 @@ import { getDoppelgangerModifierOptions } from './modifiers/doppelganger.js';
 import { getSentinelModifierOptions } from './modifiers/sentinel.js';
 import { getStopwatchModifierOptions } from './modifiers/stopwatch.js';
 import { getPlatformShape } from './platforms/index.js';
+import { canPlayerJump, hasPlayerClearedPlatformBelow, isPlayerAboveOneWaySection, landPlayer, leavePlatform } from './playerMovement.js';
 import { isGroundContact } from './matterSupport.js';
 import { dasherCollisionMask, DOT_CATEGORY, DOT_MASK, ENEMY_CATEGORY, EXIT_CATEGORY, EXIT_MASK, PLAYER_CATEGORY, PLAYER_MASK, PLATFORM_CATEGORY, PLATFORM_MASK } from './matterFilters.js';
 import { freezeMatterRun } from './phases/lifecycle/death.js';
@@ -20,7 +21,7 @@ import { createOwnedUpgrades, purchaseUpgrade, upgrades } from './upgrades.js';
 const WIDTH = 960;
 const HEIGHT = 600;
 const PLAYER_WIDTH = 25;
-const PLAYER_HEIGHT = 34;
+const PLAYER_HEIGHT = 28;
 const VOID_DEATH_DEPTH = 650;
 const RUN_SPEED = 225 / 60;
 const DASH_SPEED = 530 / 60;
@@ -46,12 +47,13 @@ export default class UpdraftScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(12).setVisible(false);
     createSceneUi(this, this.state);
     this.platformBodies = new Map();
+    this.dropThroughPlatforms = new Set();
     this.groundContacts = new Map();
     this.doppelgangerVisuals = [];
     this.sentinelBullets = [];
     this.stopwatchInputThisFrame = false;
     this.keys = this.input.keyboard.addKeys({
-      left: 'LEFT', right: 'RIGHT', a: 'A', d: 'D',
+      left: 'LEFT', right: 'RIGHT', down: 'DOWN', a: 'A', d: 'D', s: 'S',
       up: 'UP', w: 'W', space: 'SPACE', shift: 'SHIFT'
     });
     this.createPlayer();
@@ -159,8 +161,7 @@ export default class UpdraftScene extends Phaser.Scene {
         if (!isGroundContact(pair, this.state.playerBody)) continue;
         this.groundContacts.set(pair.id, other.platformNode);
         this.state.player.groundY = this.playerVisual.y + PLAYER_HEIGHT / 2;
-        this.state.player.grounded = true;
-        this.state.player.jumps = 0;
+        landPlayer(this.state.player);
       }
     });
 
@@ -171,12 +172,13 @@ export default class UpdraftScene extends Phaser.Scene {
 
   bindInput() {
     this.input.keyboard.on('keydown', event => {
-      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'Space', 'KeyA', 'KeyD', 'KeyW', 'ShiftLeft'].includes(event.code)) {
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'KeyA', 'KeyD', 'KeyS', 'KeyW', 'ShiftLeft'].includes(event.code)) {
         this.stopwatchInputThisFrame = true;
       }
-      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'Space'].includes(event.code)) event.preventDefault();
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].includes(event.code)) event.preventDefault();
       if (event.repeat) return;
       if (['Space', 'ArrowUp', 'KeyW'].includes(event.code)) this.jump();
+      if (['ArrowDown', 'KeyS'].includes(event.code)) this.dropThrough();
       if (event.code === 'Enter') this.handleEnter();
       if (event.code.startsWith('Digit')) purchaseUpgrade(this.state, Number(event.code.slice(5)) - 1);
       if (event.code === 'ShiftLeft') this.startDash();
@@ -451,12 +453,27 @@ export default class UpdraftScene extends Phaser.Scene {
   jump() {
     const state = this.state;
     if (state.mode !== 'collect' && state.mode !== 'collapse') return;
-    if (!state.player.grounded && !(state.owned.doubleJump && state.player.jumps < 2)) return;
+    if (!canPlayerJump(state.player, state.owned.doubleJump ? 2 : 1)) return;
     const jumpSpeed = state.player.grounded ? JUMP_SPEED : DOUBLE_JUMP_SPEED;
     this.matter.setVelocityY(this.playerVisual, jumpSpeed);
     state.player.grounded = false;
     state.player.jumps += 1;
     this.groundContacts.clear();
+    this.updatePlatformCollisionFilters();
+  }
+
+  dropThrough() {
+    const state = this.state;
+    if ((state.mode !== 'collect' && state.mode !== 'collapse') || !state.player.grounded) return;
+    const platformIds = new Set([...this.groundContacts.values()].map(platform => platform.id));
+    if (!platformIds.size) return;
+
+    for (const platformId of platformIds) this.dropThroughPlatforms.add(platformId);
+    this.groundContacts.clear();
+    state.player.grounded = false;
+    state.player.jumps = 1;
+    this.matter.setVelocityY(this.playerVisual, Math.max(this.playerVisual.body.velocity.y, 2));
+    this.updatePlatformCollisionFilters();
   }
 
   startDash() {
@@ -486,6 +503,7 @@ export default class UpdraftScene extends Phaser.Scene {
         }
       );
       body.platformNode = platform;
+      body.platformSection = section;
       return body;
     });
     platform.bodies = bodies;
@@ -538,6 +556,29 @@ export default class UpdraftScene extends Phaser.Scene {
     if (!bodies) return;
     for (const body of bodies) this.matter.world.remove(body);
     this.platformBodies.delete(platformId);
+    this.dropThroughPlatforms.delete(platformId);
+  }
+
+  updatePlatformCollisionFilters() {
+    const player = this.state.player;
+    const velocityY = this.playerVisual.body.velocity.y;
+    for (const [platformId, bodies] of this.platformBodies) {
+      const platform = bodies[0]?.platformNode;
+      if (!platform) continue;
+      if (this.dropThroughPlatforms.has(platformId) && hasPlayerClearedPlatformBelow(player, platform)) {
+        this.dropThroughPlatforms.delete(platformId);
+      }
+      const droppingThrough = this.dropThroughPlatforms.has(platformId);
+      for (const body of bodies) {
+        const canLand = !droppingThrough && isPlayerAboveOneWaySection(
+          player,
+          platform,
+          body.platformSection,
+          velocityY
+        );
+        body.collisionFilter.mask = canLand ? PLATFORM_MASK : 0;
+      }
+    }
   }
 
   syncPlatformBodies() {
@@ -571,6 +612,7 @@ export default class UpdraftScene extends Phaser.Scene {
     this.clearDotBodies();
     if (this.state.exitBody) this.matter.world.remove(this.state.exitBody);
     this.groundContacts.clear();
+    this.dropThroughPlatforms.clear();
     this.state.map = generateLevel(this.state.round);
     this.state.nodes = this.state.map.nodes;
     this.state.platforms = this.state.map.platforms;
@@ -632,11 +674,13 @@ export default class UpdraftScene extends Phaser.Scene {
 
   syncPlayerState() {
     const player = this.state.player;
+    const grounded = this.groundContacts.size > 0;
+    if (!grounded && player.grounded) leavePlatform(player);
     player.x = this.playerVisual.x - PLAYER_WIDTH / 2;
     player.y = this.playerVisual.y - PLAYER_HEIGHT / 2;
     player.vx = this.playerVisual.body.velocity.x * 60;
     player.vy = this.playerVisual.body.velocity.y * 60;
-    player.grounded = this.groundContacts.size > 0;
+    player.grounded = grounded;
   }
 
   update(time, delta) {
@@ -648,6 +692,8 @@ export default class UpdraftScene extends Phaser.Scene {
       || left
       || right
       || this.keys.up.isDown
+      || this.keys.down.isDown
+      || this.keys.s.isDown
       || this.keys.w.isDown
       || this.keys.space.isDown
       || this.keys.shift.isDown;
@@ -669,6 +715,7 @@ export default class UpdraftScene extends Phaser.Scene {
         this.syncPlatformBodies();
         this.syncDotBodies();
       }
+      this.updatePlatformCollisionFilters();
 
       const direction = Number(right) - Number(left);
       if (direction) state.player.facing = direction;

@@ -1,5 +1,5 @@
 export const upgrades = [
-  { key: 'doubleJump', title: 'DOUBLE JUMP', detail: 'A second jump in mid-air', cost: 8 },
+  { key: 'doubleJump', title: 'DOUBLE AIR JUMP', detail: 'Two air jumps per airtime', cost: 8 },
   { key: 'dash', title: 'DASH', detail: 'Shift for a burst of speed', cost: 6 },
   { key: 'slowZone', title: 'SLOW THE RISE', detail: 'Death zone climbs 25% slower', cost: 10 },
   { key: 'compass', title: 'DOT COMPASS', detail: 'Arrow points to nearest dot', cost: 5 }

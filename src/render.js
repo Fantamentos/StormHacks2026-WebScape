@@ -122,13 +122,14 @@ function drawDoppelgangers(graphics, state, scene) {
   if (!run) return;
 
   for (const copy of run.copies) {
+    const top = copy.y - state.player.h / 2;
     graphics.fillStyle(0x49265d, 1);
     graphics.fillRoundedRect(copy.x - state.player.w / 2, copy.y - state.player.h / 2, state.player.w, state.player.h, 7);
     graphics.fillStyle(0x24132f, 1);
-    graphics.fillRect(copy.x - 6, copy.y - 7, 4, 4);
-    graphics.fillRect(copy.x + 2, copy.y - 7, 4, 4);
-    graphics.fillRect(copy.x - 8, copy.y + 10, 7, 5);
-    graphics.fillRect(copy.x + 1, copy.y + 10, 7, 5);
+    graphics.fillRect(copy.x - 6, top + state.player.h * 0.3, 4, 4);
+    graphics.fillRect(copy.x + 2, top + state.player.h * 0.3, 4, 4);
+    graphics.fillRect(copy.x - 8, top + state.player.h - 7, 7, 5);
+    graphics.fillRect(copy.x + 1, top + state.player.h - 7, 7, 5);
   }
 }
 
@@ -303,20 +304,25 @@ export function drawGame(scene, state) {
     graphics.strokeRect(state.exit.x + 8, state.exit.y + 8, 26, 34);
   }
 
+  drawDoppelgangers(graphics, state, scene);
+  drawDasher(graphics, state, scene);
+  drawStopwatch(graphics, state, scene);
+  drawSentinel(graphics, state, scene);
+
+  graphics.fillStyle(0xb7edc8, 1);
+  graphics.fillRoundedRect(state.player.x, state.player.y, state.player.w, state.player.h, 7);
+  graphics.lineStyle(2, 0xffffff, 1);
+  graphics.strokeRoundedRect(state.player.x, state.player.y, state.player.w, state.player.h, 7);
   if (!state.player.shieldUsed) {
     graphics.lineStyle(2, 0x9fe3bd, 0.75);
     graphics.strokeCircle(state.player.x + state.player.w / 2, state.player.y + state.player.h / 2, 22);
   }
   graphics.fillStyle(0x203b32, 1);
-  graphics.fillRect(state.player.x + (state.player.facing > 0 ? 15 : 5), state.player.y + 10, 4, 4);
+  graphics.fillRect(state.player.x + (state.player.facing > 0 ? 15 : 5), state.player.y + state.player.h * 0.3, 4, 4);
   graphics.fillStyle(0x6daf88, 1);
-  graphics.fillRect(state.player.x + 4, state.player.y + 27, 7, 5);
-  graphics.fillRect(state.player.x + 15, state.player.y + 27, 7, 5);
+  graphics.fillRect(state.player.x + 4, state.player.y + state.player.h - 7, 7, 5);
+  graphics.fillRect(state.player.x + 15, state.player.y + state.player.h - 7, 7, 5);
 
-  drawDoppelgangers(graphics, state, scene);
-  drawDasher(graphics, state, scene);
-  drawStopwatch(graphics, state, scene);
-  drawSentinel(graphics, state, scene);
   scene.roundLabel.setText(`ROUND ${String(state.round).padStart(2, '0')}  /  COLLECT DOTS`);
   updateOverlay(scene, state);
   if (state.owned.compass && (state.mode === 'collect' || state.mode === 'collapse')) drawCompass(scene.uiGraphics, state, scene);
