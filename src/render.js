@@ -116,6 +116,21 @@ function drawDasher(graphics, state, scene) {
   }
 }
 
+function drawDoppelgangers(graphics, state, scene) {
+  const run = state.doppelgangerRun;
+  if (!run) return;
+
+  for (const copy of run.copies) {
+    graphics.fillStyle(0x49265d, 1);
+    graphics.fillRoundedRect(copy.x - state.player.w / 2, copy.y - state.player.h / 2, state.player.w, state.player.h, 7);
+    graphics.fillStyle(0x24132f, 1);
+    graphics.fillRect(copy.x - 6, copy.y - 7, 4, 4);
+    graphics.fillRect(copy.x + 2, copy.y - 7, 4, 4);
+    graphics.fillRect(copy.x - 8, copy.y + 10, 7, 5);
+    graphics.fillRect(copy.x + 1, copy.y + 10, 7, 5);
+  }
+}
+
 function drawCompass(graphics, state, scene) {
   const camera = scene.cameras.main;
   const playerX = state.player.x + state.player.w / 2 - camera.scrollX;
@@ -251,6 +266,7 @@ export function drawGame(scene, state) {
   graphics.fillRect(state.player.x + 4, state.player.y + 27, 7, 5);
   graphics.fillRect(state.player.x + 15, state.player.y + 27, 7, 5);
 
+  drawDoppelgangers(graphics, state, scene);
   drawDasher(graphics, state, scene);
   scene.roundLabel.setText(`ROUND ${String(state.round).padStart(2, '0')}  /  COLLECT DOTS`);
   updateOverlay(scene, state);

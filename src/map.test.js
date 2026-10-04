@@ -55,7 +55,7 @@ test('the non-jittered fallback is a validated level layout', () => {
 });
 
 test('collapse removes BFS leaves without removing the exit route', async () => {
-  const { startCollapseWaves, updateCollapse } = await import('./collapse.js');
+  const { startCollapseWaves, updateCollapse } = await import('./phases/collapse/collapse.js');
   const map = generateLevel(3);
   const state = { platforms: [...map.platforms], dots: [], exitPlatform: map.root };
   startCollapseWaves(state);

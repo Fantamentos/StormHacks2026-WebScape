@@ -1,11 +1,13 @@
 import Phaser from 'phaser';
-import { startCollapseWaves, updateCollapse } from './collapse.js';
+import { startCollapseWaves, updateCollapse } from './phases/collapse/collapse.js';
 import { createPlatformDots, rewardDot } from './dots.js';
 import { advanceDasher, chooseDasherSpawn, createDasher } from './enemies/dasher.js';
+import { advanceDoppelgangerRun, createDoppelgangerRun, DOPPELGANGER_BUFFED_MAX_COUNT } from './enemies/doppelganger.js';
 import { generateLevel } from './map.js';
 import { getPlatformShape } from './platforms/index.js';
 import { isGroundContact } from './matterSupport.js';
 import { dasherCollisionMask, DOT_CATEGORY, DOT_MASK, ENEMY_CATEGORY, EXIT_CATEGORY, EXIT_MASK, PLAYER_CATEGORY, PLAYER_MASK, PLATFORM_CATEGORY, PLATFORM_MASK } from './matterFilters.js';
+import { freezeMatterRun } from './phases/lifecycle/death.js';
 import { createSceneUi, drawGame } from './render.js';
 import { createOwnedUpgrades, purchaseUpgrade, upgrades } from './upgrades.js';
 
@@ -32,6 +34,7 @@ export default class UpdraftScene extends Phaser.Scene {
     createSceneUi(this, this.state);
     this.platformBodies = new Map();
     this.groundContacts = new Map();
+    this.doppelgangerVisuals = [];
     this.keys = this.input.keyboard.addKeys({
       left: 'LEFT', right: 'RIGHT', a: 'A', d: 'D',
       up: 'UP', w: 'W', space: 'SPACE', shift: 'SHIFT'
@@ -41,6 +44,7 @@ export default class UpdraftScene extends Phaser.Scene {
     this.bindInput();
     this.bindShopButtons();
     this.resetRound();
+    this.beginRound();
     this.cameras.main.startFollow(this.playerVisual, true, 0.12, 0.12);
   }
 
@@ -82,6 +86,8 @@ export default class UpdraftScene extends Phaser.Scene {
       dotBodies: new Map(),
       collapse: null,
       enemy: null,
+      doppelgangerRun: null,
+      enemyModifier: null,
       playerInvulnerableUntil: 0
     };
     state.syncHud = () => this.syncHud();
@@ -119,7 +125,12 @@ export default class UpdraftScene extends Phaser.Scene {
           continue;
         }
         if (other.isDasher) {
-          this.handleDasherHit();
+          this.handleEnemyHit(other);
+          continue;
+        }
+        if (other.isDoppelganger) {
+          this.state.shieldNode.dataset.doppelgangerContact = String(Number(this.state.shieldNode.dataset.doppelgangerContact || 0) + 1);
+          this.handleEnemyHit(other);
           continue;
         }
         if (!other.platformNode) continue;
@@ -212,22 +223,67 @@ export default class UpdraftScene extends Phaser.Scene {
     }
   }
 
-  handleDasherHit() {
+  clearDoppelgangers() {
+    for (const visual of this.doppelgangerVisuals) {
+      this.matter.world.remove(visual.body);
+      visual.destroy();
+    }
+    this.doppelgangerVisuals = [];
+    this.state.doppelgangerRun = null;
+  }
+
+  startDoppelgangers(time = this.time.now) {
+    this.clearDoppelgangers();
+    const options = this.state.enemyModifier === 'doppelganger-cap-five'
+      ? { maxCount: DOPPELGANGER_BUFFED_MAX_COUNT }
+      : {};
+    this.state.doppelgangerRun = createDoppelgangerRun(time, {
+      x: this.playerVisual.x,
+      y: this.playerVisual.y
+    }, options);
+  }
+
+  updateDoppelgangers(time) {
+    const run = this.state.doppelgangerRun;
+    if (!run) return;
+    const copies = advanceDoppelgangerRun(run, time, {
+      x: this.playerVisual.x,
+      y: this.playerVisual.y
+    });
+
+    while (this.doppelgangerVisuals.length < copies.length) {
+      const copy = copies[this.doppelgangerVisuals.length];
+      const visual = this.add.rectangle(copy.x, copy.y, PLAYER_WIDTH, PLAYER_HEIGHT, 0x49265d).setDepth(9).setAlpha(0);
+      this.matter.add.gameObject(visual, {
+        shape: { type: 'rectangle', width: PLAYER_WIDTH, height: PLAYER_HEIGHT },
+        isStatic: true,
+        isSensor: true,
+        collisionFilter: { category: ENEMY_CATEGORY, mask: PLAYER_CATEGORY },
+        label: `doppelganger:${copy.id}`
+      });
+      visual.body.isDoppelganger = true;
+      this.doppelgangerVisuals.push(visual);
+    }
+
+    copies.forEach((copy, index) => this.doppelgangerVisuals[index].setPosition(copy.x, copy.y));
+    this.state.phaseNode.dataset.doppelgangerCount = String(copies.length);
+    this.state.phaseNode.dataset.doppelgangerBody = this.doppelgangerVisuals.map(visual => `${visual.x},${visual.y},${visual.body.isStatic},${visual.body.isSensor},${visual.body.collisionFilter.category},${visual.body.collisionFilter.mask}`).join(';');
+  }
+
+  handleEnemyHit(enemyBody) {
     const state = this.state;
-    if (!state.enemy || state.enemy.phase !== 'dash' || this.time.now < state.playerInvulnerableUntil) return;
+    if (enemyBody.isDasher && (!state.enemy || state.enemy.phase !== 'dash')) return;
+    if (this.time.now < state.playerInvulnerableUntil) return;
     if (!state.player.shieldUsed) {
       state.player.shieldUsed = true;
       state.playerInvulnerableUntil = this.time.now + 800;
-      const direction = Math.sign(this.playerVisual.x - this.dasherVisual.x) || 1;
+      const direction = Math.sign(this.playerVisual.x - enemyBody.position.x) || 1;
       this.matter.setVelocity(this.playerVisual, direction * 4, -3);
       this.syncHud();
       return;
     }
 
-    state.mode = 'dead';
-    this.matter.setVelocity(this.playerVisual, 0, 0);
-    this.removeDasher();
-    this.syncHud();
+    this.freezeRun();
   }
 
   handleEnter() {
@@ -352,7 +408,11 @@ export default class UpdraftScene extends Phaser.Scene {
   }
 
   resetRound() {
+    this.matter.world.resume();
+    this.playerVisual.setStatic(false);
+    this.playerVisual.setIgnoreGravity(false);
     this.removeDasher();
+    this.clearDoppelgangers();
     for (const id of [...this.platformBodies.keys()]) this.removePlatformBodies(id);
     this.clearDotBodies();
     if (this.state.exitBody) this.matter.world.remove(this.state.exitBody);
@@ -389,7 +449,12 @@ export default class UpdraftScene extends Phaser.Scene {
     if (this.state.mode === 'dead') this.resetRound();
     this.state.mode = 'collect';
     this.spawnDasher();
+    this.startDoppelgangers();
     this.syncHud();
+  }
+
+  freezeRun() {
+    if (freezeMatterRun(this.state, this.matter, this.playerVisual, this.dasherVisual, this.matter.world)) this.syncHud();
   }
 
   startCollapse() {
@@ -425,6 +490,7 @@ export default class UpdraftScene extends Phaser.Scene {
     if (state.mode === 'collect' || state.mode === 'collapse') {
       state.elapsed += dt;
       this.updateDasher(time);
+      this.updateDoppelgangers(time);
       this.processDotCollections();
       if (state.mode === 'collapse') {
         updateCollapse(state, dt);
@@ -440,8 +506,9 @@ export default class UpdraftScene extends Phaser.Scene {
       else this.matter.setVelocityX(this.playerVisual, direction * RUN_SPEED);
 
       if (state.player.y + PLAYER_HEIGHT - state.player.groundY > VOID_DEATH_DEPTH) {
-        state.mode = 'dead';
-        this.matter.setVelocity(this.playerVisual, 0, 0);
+        this.freezeRun();
+        drawGame(this, state);
+        return;
       }
 
       if (state.mode === 'collapse' && state.exitTouched) {

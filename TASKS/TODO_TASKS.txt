@@ -2,6 +2,7 @@ TODO
 ====
 
 - [x] HIGH PRIORITY: Fix the bug that prevents the player from jumping
+- [ ] Reduce the player sprite's height while keeping its width unchanged
 - [x] Revamp map generation to choose seeded random branch directions from positions reachable with the player's jump physics
 - [x] Reject candidate platforms that overlap or violate minimum clearance with any nearby platform
 - [x] Retry rejected seeded map layouts and use a validated fixed fallback after the bounded attempts
@@ -23,7 +24,32 @@ TODO
 ENEMY DESIGNS
 =============
 
-- [ ] Implement Enemy 01: Dasher: fly and pass through walls; spawn randomly in the area surrounding an outermost traversable platform (not necessarily on a leaf); stay completely stationary between dashes; show the faint red target line for 1 second, then move in a straight, gravity-free line for 1 second and stop at the locked target; repeat without extra cooldown. Full spec: DESCRIPTIONS/01_DASHER.txt. Put implementation in src/enemies/.
+- [x] Implement Enemy 01: Dasher: fly and pass through walls; spawn randomly in the area surrounding an outermost traversable platform (not necessarily on a leaf); stay completely stationary between dashes; show the faint red target line for 1 second, then move in a straight, gravity-free line for 1 second and stop at the locked target; repeat without extra cooldown. Full spec: DESCRIPTIONS/01_DASHER.txt. Put implementation in src/enemies/.
+- [ ] Tune the Dasher's 1-second dash to slide toward its locked target: start slightly faster, then noticeably slow around the final quarter of the distance (about 0.75 seconds in); stay straight and gravity-free, and stop exactly at the target
+- [ ] Add the enemy-buff modifier for the Dasher: after its normal dash, immediately telegraph a follow-up dash with the red dashed line for 0.25 seconds, then dash for 1 second; resume the normal attack cycle afterward
+- [x] Implement Enemy 02: Doppelganger: after 2 seconds, spawn at the followed entity's position from 2 seconds earlier; dark-purple player-sprite copies replay movement and damage the player on contact, encouraging constant movement and weaving between copies. Each follows the player or previous copy with a 2-second delay; base cap 3. Configurable modifier raises cap to 5. Full spec: DESCRIPTIONS/02_DOPPELGANGER.txt. Put implementation in src/enemies/.
+- [ ] Implement Enemy 03: Stopwatch: one active; first spawn 7-10 seconds into the level with no extra grace, then show an 8-second countdown above it. Avoid damage by using no controls for 0.2 seconds before time expires; this cancels the countdown and resets its randomized cooldown. Full spec: DESCRIPTIONS/03_STOPWATCH.txt. Put implementation in src/enemies/.
+
+
+GAME LIFECYCLE
+==============
+
+- [x] Lazy-load Phaser only when the player starts level gameplay after intermission; keep the Phaser game and scene loaded across later levels
+- [x] On each new level, remove the previous level's entities and generate a fresh map without reloading Phaser or losing run state
+- [x] On death, freeze the player at the death position (including stopping void falls), stop all moving entities, and pause physics and camera movement while keeping death-screen controls usable
+
+
+INTERMISSION
+=============
+
+- [ ] Implement the intermission phase in src/phases/intermission/; pressing Enter from the start screen should enter the first intermission instead of starting gameplay directly
+- [ ] In every intermission, offer two sequential enemy-selection rounds with three choices each; choose one enemy per round and allow the same type to be picked both times
+- [ ] Define four enemy types for the selection pool: Dasher plus three placeholders for future designs
+- [ ] Apply the two selected enemy picks to the upcoming level's enemy roster
+- [ ] In the first intermission only, offer a modifier choice that buffs the selected enemies before the shop; leave the specific buff configurable for later design
+- [ ] Show the upgrade shop after enemy selection (and the first-run modifier when applicable), then begin the upcoming level
+- [ ] When a level is completed by returning to the start/exit after collapse, enter intermission before generating the next level
+- [ ] Test intermission ordering, repeated enemy picks, first-intermission-only modifier, shop flow, and level transitions
 
 
 DESIGN NOTES

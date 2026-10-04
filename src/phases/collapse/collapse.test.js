@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { updateCollapse, startCollapseWaves } from './collapse.js';
-import { getPlatformColors } from './render.js';
+import { getPlatformColors } from '../../render.js';
 
 test('warning platforms blink for four seconds, stay white for two, then disappear', () => {
   const root = { id: 'root', routeChildIds: [] };

@@ -1,0 +1,21 @@
+ENEMY 03: STOPWATCH
+===================
+
+Concept
+-------
+A timed threat that warns the player before dealing damage. The player avoids the hit by briefly stopping all input.
+
+Behavior
+--------
+- Maximum active number: 1.
+- Spawn 7-10 seconds after the level begins, with the delay randomized.
+- No additional spawn grace period; begin the enemy's cooldown/countdown immediately when it spawns.
+- Show an 8-second countdown above the enemy.
+- If the countdown reaches zero before the player has been idle for 0.2 seconds, damage the player.
+- If the player gives no control input for 0.2 seconds before the countdown expires, cancel the countdown and reset the randomized cooldown.
+
+Implementation notes
+--------------------
+- Display the remaining countdown time above the enemy and keep it readable during play.
+- Treat movement, jump, dash, and other player controls as input for the idle check.
+- Keep the enemy count capped at one.

@@ -1,0 +1,28 @@
+ENEMY 02: DOPPELGANGER
+=======================
+
+Concept
+-------
+A dark-purple copy of the player that recreates recent movement. Multiple copies form a delayed trail behind the player.
+
+Base behavior
+-------------
+- Wait 2 seconds before spawning.
+- Spawn at the followed entity's position from 2 seconds earlier.
+- The first Doppelganger follows the player's position history with a 2-second delay.
+- Each later Doppelganger follows the previous Doppelganger's position history with a 2-second delay, forming a chain.
+- Maximum active number: 3.
+- Use the player's sprite silhouette tinted dark purple.
+- Damage the player on contact. The delayed trail should pressure the player to keep moving and weave between the Doppelgangers.
+
+Enemy-buff modifier options
+---------------------------
+Choose one modifier effect for this enemy:
+- Increase its maximum active number by 2, from 3 to 5.
+- Reduce the delay between each Doppelganger and the entity it follows from 2 seconds to 1 second.
+
+Implementation and testing notes
+--------------------------------
+- Record enough position history to replay the required delay for the player and each preceding Doppelganger.
+- Test what happens when the followed entity dies, respawns, changes level, or crosses a collapsing platform.
+- Decide whether Doppelgangers collide with terrain/platforms or replay the path regardless of terrain.

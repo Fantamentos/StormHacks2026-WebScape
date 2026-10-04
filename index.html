@@ -42,6 +42,14 @@
     .metric-value small { color: var(--muted); font-size: 12px; font-weight: 400; }
     .arena { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 0 0 7px 7px; background: #172427; aspect-ratio: 960 / 600; }
     #game, #game canvas { display: block; width: 100%; height: 100%; }
+    .intermission { position: absolute; z-index: 20; inset: 0; display: grid; place-items: center; background: rgba(10, 18, 20, .78); }
+    .intermission[hidden] { display: none; }
+    .intermission-panel { width: min(528px, calc(100% - 32px)); padding: 28px; border: 1px solid #526760; border-radius: 8px; background: #172225; text-align: center; }
+    .intermission-panel h2 { margin: 8px 0; font-size: 30px; font-weight: 600; }
+    .intermission-panel p { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+    .intermission-panel button { padding: 11px 20px; border: 1px solid #9fe3bd; border-radius: 4px; background: #28493a; color: var(--ink); font: 500 14px "DM Mono", Consolas, monospace; cursor: pointer; }
+    .intermission-panel button:hover { background: #365c49; }
+    .intermission-panel button:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
     .footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 20px; padding: 13px 2px 0; color: var(--muted); font-size: 11px; }
     .footer strong { color: var(--ink); font-weight: 500; }
     kbd { padding: 2px 5px; border: 1px solid #506064; border-radius: 3px; color: var(--ink); font: inherit; }
@@ -69,7 +77,17 @@
       <div class="metric"><span class="metric-label">Credits</span><span class="metric-value" id="credits">0</span></div>
       <div class="metric"><span class="metric-label">Shield</span><span class="metric-value" id="shield">Ready</span></div>
     </section>
-    <div class="arena"><div id="game" role="img" aria-label="Updraft platform game"></div></div>
+    <div class="arena">
+      <div id="game" role="img" aria-label="Updraft platform game"></div>
+      <section class="intermission" id="intermission" aria-labelledby="intermission-title">
+        <div class="intermission-panel">
+          <p class="eyebrow">Level 01 · Intermission</p>
+          <h2 id="intermission-title">Choose when to begin</h2>
+          <p>Your upgrades and credits carry into the run.</p>
+          <button id="begin-level" type="button">Enter level</button>
+        </div>
+      </section>
+    </div>
     <div class="footer">
       <span><strong>Move</strong> <kbd>A</kbd> <kbd>D</kbd> / arrows &nbsp; <strong>Jump</strong> <kbd>W</kbd> <kbd>Space</kbd> / ↑</span>
       <span><strong>Dash</strong> <kbd>Shift</kbd> &nbsp; <strong>Start / continue</strong> <kbd>Enter</kbd></span>
