@@ -1,3 +1,6 @@
+import { nearestUncollectedDot } from './dots.js';
+import { getPlatformShape } from './platforms/index.js';
+
 function roundedRect(ctx, x, y, w, h, radius, fill, stroke) {
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, radius);
@@ -7,6 +10,24 @@ function roundedRect(ctx, x, y, w, h, radius, fill, stroke) {
     ctx.strokeStyle = stroke;
     ctx.lineWidth = 1;
     ctx.stroke();
+  }
+}
+
+function drawPlatform(ctx, platform, colors) {
+  const shape = getPlatformShape(platform.shape);
+  const radius = shape.cornerRadius;
+  roundedRect(ctx, platform.x, platform.y, platform.w, platform.h, radius, colors.fill);
+  ctx.fillStyle = colors.top;
+  ctx.fillRect(platform.x + radius, platform.y, platform.w - radius * 2, 3);
+
+  if (platform.warning) return;
+  if (shape.detail === 'supports') {
+    ctx.fillStyle = 'rgba(12, 25, 25, .22)';
+    ctx.fillRect(platform.x + 12, platform.y + 7, 3, platform.h - 9);
+    ctx.fillRect(platform.x + platform.w - 15, platform.y + 7, 3, platform.h - 9);
+  } else if (shape.detail === 'stripe') {
+    ctx.fillStyle = 'rgba(211, 241, 220, .32)';
+    ctx.fillRect(platform.x + 8, platform.y + 6, platform.w - 16, 1);
   }
 }
 
@@ -30,23 +51,25 @@ function drawBackground(ctx, width, height) {
   ctx.beginPath(); ctx.arc(760, 230, 160, 0, Math.PI * 2); ctx.fill();
 }
 
-function drawCompass(ctx, state, width) {
-  const target = state.dots.filter(dot => !dot.taken).sort((a, b) => {
-    const da = (a.x - state.player.x) ** 2 + (a.y - state.player.y) ** 2;
-    const db = (b.x - state.player.x) ** 2 + (b.y - state.player.y) ** 2;
-    return da - db;
-  })[0];
-  if (!target) return;
+function drawCompass(ctx, state) {
+  const playerX = state.player.x + state.player.w / 2 - state.camera.x;
+  const playerY = state.player.y + state.player.h / 2 - state.camera.y;
+  const target = nearestUncollectedDot(state.player, state.dots);
+  const targetX = target ? target.x - state.camera.x : playerX + 1;
+  const targetY = target ? target.y - state.camera.y : playerY;
+  const angle = Math.atan2(targetY - playerY, targetX - playerX);
+  const radius = 54;
+  const arrowX = playerX + Math.cos(angle) * radius;
+  const arrowY = playerY + Math.sin(angle) * radius;
 
-  const angle = Math.atan2(target.y - state.player.y, target.x - state.player.x);
+  if (!target) return;
   ctx.save();
-  ctx.translate(width / 2, 42);
-  ctx.rotate(angle + Math.PI / 2);
-  ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(8, 8); ctx.lineTo(0, 4); ctx.lineTo(-8, 8); ctx.closePath();
+  ctx.translate(arrowX, arrowY);
+  ctx.rotate(angle);
+  ctx.beginPath(); ctx.moveTo(13, 0); ctx.lineTo(-7, -6); ctx.lineTo(-3, 0); ctx.lineTo(-7, 6); ctx.closePath();
   ctx.fillStyle = target.type === 'currency' ? '#ffd16d' : '#9fe3bd';
   ctx.fill();
   ctx.restore();
-  ctx.textAlign = 'center'; ctx.fillStyle = '#d0dbd2'; ctx.font = '10px "DM Mono", monospace'; ctx.fillText('NEAREST DOT', width / 2, 66);
 }
 
 function drawOverlay(ctx, width, height, title, copy, prompt) {
@@ -125,8 +148,7 @@ export function drawGame(ctx, state, width, height) {
   ctx.translate(-state.camera.x, -state.camera.y);
   for (const platform of state.platforms) {
     const colors = getPlatformColors(platform, state);
-    ctx.fillStyle = colors.fill; ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
-    ctx.fillStyle = colors.top; ctx.fillRect(platform.x, platform.y, platform.w, 3);
+    drawPlatform(ctx, platform, colors);
   }
   for (const dot of state.dots) {
     if (dot.taken) continue;
@@ -144,9 +166,6 @@ export function drawGame(ctx, state, width, height) {
     ctx.globalAlpha = 1;
     ctx.fillStyle = '#c5d4cd'; ctx.font = '11px "DM Mono", monospace'; ctx.textAlign = 'center'; ctx.fillText('EXIT', state.exit.x + state.exit.w / 2, state.exit.y - 8);
   }
-  roundedRect(ctx, state.enemy.x, state.enemy.y, state.enemy.w, state.enemy.h, 6, '#e87965');
-  ctx.fillStyle = '#381f21'; ctx.fillRect(state.enemy.x + 7, state.enemy.y + 9, 4, 4); ctx.fillRect(state.enemy.x + 20, state.enemy.y + 9, 4, 4);
-  ctx.fillStyle = '#ffc0a7'; ctx.fillRect(state.enemy.x + 10, state.enemy.y + 21, 11, 2);
   const blink = state.player.invulnerable > 0 && Math.floor(state.elapsed * 16) % 2 === 0;
   if (!blink) {
     if (!state.player.shieldUsed) {
@@ -169,9 +188,9 @@ export function drawGame(ctx, state, width, height) {
     ctx.textAlign = 'center'; ctx.fillStyle = '#ffad9f'; ctx.font = '500 12px "DM Mono", monospace';
     ctx.fillText('FALLING INTO THE VOID', width / 2, height - 28);
   }
-  if (state.owned.compass && (state.mode === 'collect' || state.mode === 'collapse')) drawCompass(ctx, state, width);
+  if (state.owned.compass && (state.mode === 'collect' || state.mode === 'collapse')) drawCompass(ctx, state);
   if (state.mode === 'ready') drawOverlay(ctx, width, height, 'UPDRAFT', 'Collect every pale dot to start the collapse.', 'Press ENTER to drop in');
-  if (state.mode === 'dead') drawOverlay(ctx, width, height, 'RUN ENDED', 'You fell into the void or were struck by the enemy.', `Credits banked: ${state.credits}  ·  Press ENTER to retry`);
+  if (state.mode === 'dead') drawOverlay(ctx, width, height, 'RUN ENDED', 'You fell too far from the last platform.', `Credits banked: ${state.credits}  ·  Press ENTER to retry`);
   if (state.mode === 'escaped') drawOverlay(ctx, width, height, 'ARENA CLEARED', 'The exit is yours. Spend your credits on upgrades.', 'Press ENTER to continue');
   if (state.mode === 'shop') drawShop(ctx, state, width, height, roundedRect);
   if (state.messageTimer > 0 && state.mode === 'collapse') {

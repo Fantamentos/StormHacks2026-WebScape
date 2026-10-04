@@ -1,24 +1,27 @@
+import { createPlatformDots } from './dots.js';
+import { choosePlatformShape, STANDARD_PLATFORM } from './platforms/index.js';
+
 const ROOT_BRANCHES = [
-  { x: 1, y: 0, label: 'east', rootOffset: { x: 164, y: 0 } },
-  { x: -1, y: 0, label: 'west', rootOffset: { x: -164, y: 0 } },
-  { x: 0, y: -1, label: 'north', rootOffset: { x: 82, y: -82 } },
-  { x: 0, y: 1, label: 'south', rootOffset: { x: -82, y: 82 } }
+  { x: 1, y: 0, label: 'east' },
+  { x: -1, y: 0, label: 'west' },
+  { x: 0, y: -1, label: 'north' },
+  { x: 0, y: 1, label: 'south' }
 ];
 const MAX_PLACEMENT_ATTEMPTS = 8;
-const PLATFORM_WIDTH = 124;
 
 function randomFor(seed) {
   const value = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
   return value - Math.floor(value);
 }
 
-function createNode(id, x, y, depth, branch, parentId = null) {
+function createNode(id, x, y, depth, branch, parentId = null, shape = STANDARD_PLATFORM) {
   return {
     id,
     x,
     y,
-    w: 124,
-    h: 14,
+    w: shape.width,
+    h: shape.height,
+    shape: shape.type,
     parentId,
     childIds: [],
     distance: 0,
@@ -28,9 +31,18 @@ function createNode(id, x, y, depth, branch, parentId = null) {
   };
 }
 
-function horizontalStep(level, nodeIndex, attempt) {
-  if (attempt < 0) return PLATFORM_WIDTH + 40;
-  return PLATFORM_WIDTH + 36 + randomFor(level * 131 + nodeIndex * 17 + attempt * 997) * 12;
+function platformShape(level, nodeIndex) {
+  return choosePlatformShape(randomFor(level * 73 + nodeIndex * 31));
+}
+
+function horizontalGap(level, nodeIndex, attempt) {
+  if (attempt < 0) return 40;
+  return 36 + randomFor(level * 131 + nodeIndex * 17 + attempt * 997) * 12;
+}
+
+function horizontalOffset(parent, childShape, direction, level, nodeIndex, attempt) {
+  const width = direction > 0 ? parent.w : childShape.width;
+  return width + horizontalGap(level, nodeIndex, attempt);
 }
 
 function assignBfsRoutes(nodes, rootId, adjacency) {
@@ -67,8 +79,8 @@ function hasClearance(nodes) {
       const b = nodes[second];
       const gapX = Math.max(0, a.x - (b.x + b.w), b.x - (a.x + a.w));
       const gapY = Math.max(0, a.y - (b.y + b.h), b.y - (a.y + a.h));
-      if (gapX === 0 && gapY === 0) return `${a.id}/${b.id}:overlap`;
-      if (Math.hypot(gapX, gapY) < 36) return `${a.id}/${b.id}:clearance-${Math.hypot(gapX, gapY).toFixed(1)}`;
+      if (gapX === 0 && gapY === 0) return `${a.id}/${b.id}:overlap-${gapX},${gapY}`;
+      if (Math.hypot(gapX, gapY) < 36) return `${a.id}/${b.id}:clearance-${gapX},${gapY}`;
     }
   }
   return null;
@@ -170,35 +182,41 @@ function validatePhysicsRoutes(nodes, root) {
 
 function buildCandidate(level, attempt) {
   const depth = Math.max(3, Math.floor(level) + 2);
-  const root = createNode(`L${level}-root`, 0, 470, depth, null);
+  const root = createNode(`L${level}-root`, 0, 470, depth, null, null, STANDARD_PLATFORM);
   const nodes = [root];
   let nextId = 0;
 
   for (const branch of ROOT_BRANCHES) {
-    const firstPosition = { x: root.x + branch.rootOffset.x, y: root.y + branch.rootOffset.y };
-    const first = createNode(`L${level}-node-${nextId++}`, firstPosition.x, firstPosition.y, depth - 1, branch, root.id);
+    const firstShape = platformShape(level, nextId);
+    const firstX = branch.x > 0
+      ? root.x + root.w + 40
+      : branch.x < 0
+        ? root.x - firstShape.width - 40
+        : root.x + (root.w - firstShape.width) / 2;
+    const firstY = root.y + branch.y * 82;
+    const first = createNode(`L${level}-node-${nextId++}`, firstX, firstY, depth - 1, branch, root.id, firstShape);
     root.childIds.push(first.id);
     nodes.push(first);
 
-    const forkStep = horizontalStep(level, nextId, attempt);
-    const forkPositions = branch.x !== 0
-      ? [
-          { x: first.x + branch.x * forkStep, y: first.y - 42 },
-          { x: first.x + branch.x * 82, y: first.y + 50 }
-        ]
-      : [-1, 1].map(side => ({ x: first.x + side * 164, y: first.y + branch.y * 82 }));
-    const routes = forkPositions.map((position, routeIndex) => {
+    const routes = [0, 1].map(routeIndex => {
+      const shape = platformShape(level, nextId);
+      const side = routeIndex === 0 ? -1 : 1;
+      const offset = horizontalOffset(first, shape, branch.x !== 0 ? branch.x : side, level, nextId, attempt);
+      const position = branch.x !== 0
+        ? { x: first.x + branch.x * offset, y: first.y + side * 60 }
+        : { x: first.x + side * offset, y: first.y + branch.y * 82 };
       const routeDirection = branch.x !== 0 ? branch.x : (routeIndex === 0 ? -1 : 1);
-      const route = createNode(`L${level}-node-${nextId++}`, position.x, position.y, depth - 2, { ...branch, routeDirection }, first.id);
+      const route = createNode(`L${level}-node-${nextId++}`, position.x, position.y, depth - 2, { ...branch, routeDirection }, first.id, shape);
       first.childIds.push(route.id);
       nodes.push(route);
       let parent = route;
 
       while (parent.remainingDepth > 0) {
-        const step = horizontalStep(level, nextId, attempt);
-        const x = branch.x !== 0 ? parent.x + branch.x * step : parent.x + routeDirection * step;
+        const shape = platformShape(level, nextId);
+        const step = horizontalOffset(parent, shape, routeDirection, level, nextId, attempt);
+        const x = parent.x + routeDirection * step;
         const y = branch.x !== 0 ? parent.y : parent.y + branch.y * 82;
-        const continuation = createNode(`L${level}-node-${nextId++}`, x, y, parent.remainingDepth - 1, route.branch, parent.id);
+        const continuation = createNode(`L${level}-node-${nextId++}`, x, y, parent.remainingDepth - 1, route.branch, parent.id, shape);
         parent.childIds.push(continuation.id);
         nodes.push(continuation);
         parent = continuation;
@@ -210,17 +228,7 @@ function buildCandidate(level, attempt) {
   }
 
   const platforms = nodes;
-  const dots = nodes
-    .filter(node => node !== root)
-    .slice(0, 10)
-    .map(node => ({
-      x: node.x + node.w / 2,
-      y: node.y - 28,
-      type: 'normal',
-      taken: false,
-      platform: node,
-      nodeId: node.id
-    }));
+  const dots = createPlatformDots(platforms, 'normal');
 
   return { root, nodes, byId: new Map(nodes.map(node => [node.id, node])), platforms, dots, depth, attempt };
 }
@@ -231,14 +239,7 @@ function finalizeCandidate(candidate, adjacency) {
   candidate.root = routes.byId.get(candidate.root.id);
   candidate.byId = routes.byId;
   candidate.platforms = candidate.nodes;
-  candidate.dots = candidate.nodes.filter(node => node !== candidate.root).slice(0, 10).map(node => ({
-    x: node.x + node.w / 2,
-    y: node.y - 28,
-    type: 'normal',
-    taken: false,
-    platform: node,
-    nodeId: node.id
-  }));
+  candidate.dots = createPlatformDots(candidate.platforms, 'normal');
   return candidate;
 }
 

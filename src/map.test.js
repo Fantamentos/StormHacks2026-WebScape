@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { generateFallbackLevel, generateLevel } from './map.js';
+import { choosePlatformShape, PLATFORM_SHAPES } from './platforms/index.js';
 
 test('level graphs grow with four two-route branches and physical BFS routes', () => {
   let previousDepth = 0;
@@ -12,6 +13,8 @@ test('level graphs grow with four two-route branches and physical BFS routes', (
     assert.ok(map.depth > previousDepth);
     previousDepth = map.depth;
     assert.equal(ids.size, map.nodes.length);
+    assert.deepEqual(new Set(map.nodes.map(node => node.shape)), new Set(PLATFORM_SHAPES.map(shape => shape.type)));
+    assert.ok(map.nodes.every(node => node.w === PLATFORM_SHAPES.find(shape => shape.type === node.shape).width));
     assert.equal(map.root.childIds.length, 4);
     assert.ok(map.root.childIds.every(id => map.byId.get(id).childIds.length === 2));
     assert.ok(map.nodes.filter(node => node !== map.root).every(node => node.childIds.length <= 2));
@@ -63,4 +66,8 @@ test('collapse removes physical BFS leaves without removing the exit route', asy
   }
 
   assert.ok(state.platforms.includes(map.root));
+});
+
+test('platform folder shapes can be selected from seeded random values', () => {
+  assert.deepEqual([0, 0.5, 0.99].map(value => choosePlatformShape(value).type), ['narrow', 'standard', 'wide']);
 });

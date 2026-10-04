@@ -1,5 +1,6 @@
 import { startCollapseWaves, updateCollapse } from './collapse.js';
 import { drawGame } from './draw.js';
+import { collectNearbyDots, createPlatformDots } from './dots.js';
 import { generateLevel } from './map.js';
 import { resolvePlatformLanding } from './physics.js';
 import { createOwnedUpgrades, purchaseUpgrade, upgrades } from './upgrades.js';
@@ -32,9 +33,11 @@ const state = {
   elapsed: 0,
   messageTimer: 0,
   normalCollected: 0,
+  normalDotTotal: 0,
+  currencyCollected: 0,
+  currencyDotTotal: 0,
   camera: { x: 0, y: 0 },
   player: null,
-  enemy: null,
   exit: null,
   exitPlatform: null,
   collapse: null,
@@ -44,7 +47,9 @@ const state = {
 state.syncHud = function syncHud() {
   const labels = { ready: 'Ready', collect: 'Collect', collapse: 'Collapse!', shop: 'Upgrade', dead: 'Run over', escaped: 'Cleared' };
   state.phaseNode.textContent = labels[state.mode] || 'Ready';
-  state.dotsNode.innerHTML = `${state.normalCollected} <small>/ 10</small>`;
+  const collected = state.mode === 'collapse' ? state.currencyCollected : state.normalCollected;
+  const total = state.mode === 'collapse' ? state.currencyDotTotal : state.normalDotTotal;
+  state.dotsNode.innerHTML = `${collected} <small>/ ${total}</small>`;
   state.creditsNode.textContent = state.credits;
   state.shieldNode.textContent = state.player && state.player.shieldUsed ? 'Spent' : 'Ready';
 };
@@ -55,13 +60,14 @@ function resetRound() {
   state.platforms = state.map.platforms;
   state.dots = state.map.dots;
   state.normalCollected = 0;
+  state.normalDotTotal = state.dots.length;
+  state.currencyCollected = 0;
+  state.currencyDotTotal = 0;
   state.startPlatform = state.map.root;
   state.player = { x: state.startPlatform.x + state.startPlatform.w / 2 - 12, y: state.startPlatform.y - 34, vx: 0, vy: 0, w: 25, h: 34, grounded: false, jumps: 0, invulnerable: 0, dashTime: 0, dashCooldown: 0, facing: 1, shieldUsed: false };
   state.camera = { x: state.player.x - state.width * 0.35, y: state.player.y - state.height * 0.55 };
   state.player.groundY = state.player.y;
   state.camera = { x: state.player.x + state.player.w / 2 - state.width / 2, y: state.player.y + state.player.h / 2 - state.height / 2 };
-  const enemyPlatform = state.map.nodes[1] || state.startPlatform;
-  state.enemy = { x: enemyPlatform.x + 30, y: enemyPlatform.y - 30, w: 31, h: 30, vx: 95 + state.round * 7, min: enemyPlatform.x, max: enemyPlatform.x + enemyPlatform.w };
   state.exit = null;
   state.exitPlatform = null;
   state.collapse = null;
@@ -95,13 +101,9 @@ function startCollapse() {
   const start = state.exitPlatform;
   state.exit = { x: start.x + start.w / 2 - 21, y: start.y - 50, w: 42, h: 50 };
 
-  const candidates = state.nodes.filter(node => node !== start).sort((a, b) => b.distance - a.distance);
-  const count = Math.min(10, candidates.length);
-  state.dots = [];
-  for (let index = 0; index < count; index += 1) {
-    const platform = candidates[index];
-    state.dots.push({ x: platform.x + platform.w / 2, y: platform.y - 27, type: 'currency', taken: false, platform, nodeId: platform.id });
-  }
+  state.dots = createPlatformDots(state.platforms, 'currency');
+  state.currencyCollected = 0;
+  state.currencyDotTotal = state.dots.length;
 
   startCollapseWaves(state);
   state.messageTimer = 2;
@@ -138,33 +140,14 @@ function update(dt) {
     return;
   }
 
-  state.enemy.x += state.enemy.vx * dt;
-  if (state.enemy.x < state.enemy.min || state.enemy.x + state.enemy.w > state.enemy.max) state.enemy.vx *= -1;
-  if (collide(state.player, state.enemy) && state.player.invulnerable === 0) {
-    if (!state.player.shieldUsed) {
-      state.player.shieldUsed = true;
-      state.player.invulnerable = 1.1;
-      state.player.vy = -310;
-      state.player.vx = state.player.x < state.enemy.x ? -180 : 180;
-      state.messageTimer = 1.1;
-    } else {
-      state.mode = 'dead';
-      state.syncHud();
-      return;
-    }
+  for (const dot of collectNearbyDots(state.player, state.dots)) {
+    if (dot.type === 'currency') {
+      state.credits += 1;
+      state.currencyCollected += 1;
+    } else state.normalCollected += 1;
   }
 
-  for (const dot of state.dots) {
-    if (dot.taken) continue;
-    const dx = state.player.x + state.player.w / 2 - dot.x;
-    const dy = state.player.y + state.player.h / 2 - dot.y;
-    if (dx * dx + dy * dy >= 24 * 24) continue;
-    dot.taken = true;
-    if (dot.type === 'currency') state.credits += 1;
-    else state.normalCollected += 1;
-  }
-
-  if (state.mode === 'collect' && state.normalCollected >= 10) startCollapse();
+  if (state.mode === 'collect' && state.normalCollected >= state.normalDotTotal) startCollapse();
   if (state.mode === 'collapse' && collide(state.player, state.exit)) {
     state.mode = 'shop';
     state.syncHud();
