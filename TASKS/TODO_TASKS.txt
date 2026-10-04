@@ -16,7 +16,7 @@ TODO
 - [ ] Later add ziplines between platforms; decide whether they work one-way or both ways and what happens if an endpoint collapses
 - [ ] Test walking, jumping, landing, falling, ramp transitions, and collapsing platforms in the browser; verify generated routes remain traversable
 - [ ] Rework the "Slow the rise" upgrade (currently does nothing) into a collapse-related effect, e.g. longer warning time
-- [ ] Rebalance and likely raise upgrade costs after measuring currency earned from the new per-platform dot distribution
+- [x] Rebalance and likely raise upgrade costs after measuring currency earned from the new per-platform dot distribution
 - [ ] Playtest the collapse phase in the browser and tune distances, dot placement and timing
 - [ ] Update README.md and the design notes below to describe collapse (needs your approval first)
 

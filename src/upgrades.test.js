@@ -25,11 +25,15 @@ function createShopState(credits = 100) {
 test('Speed Rings cost more with each purchase and stop at three', () => {
   const state = createShopState();
   const index = upgrades.findIndex(upgrade => upgrade.key === 'speedRings');
+  const paidCosts = [];
 
   for (let purchase = 0; purchase < SPEED_RING_MAX_PURCHASES; purchase += 1) {
-    assert.equal(getUpgradeCost(state, upgrades[index]), SPEED_RING_BASE_COST + purchase * SPEED_RING_COST_INCREMENT);
+    const cost = getUpgradeCost(state, upgrades[index]);
+    paidCosts.push(cost);
+    assert.equal(cost, SPEED_RING_BASE_COST + purchase * SPEED_RING_COST_INCREMENT);
     assert.equal(purchaseUpgrade(state, index), true);
   }
+  assert.deepEqual(paidCosts, [15, 25, 35]);
   assert.equal(state.owned.speedRings, SPEED_RING_MAX_PURCHASES);
   assert.equal(getRunSpeedMultiplier(state), 1 + SPEED_RING_MAX_PURCHASES * SPEED_RING_MOVEMENT_BONUS);
   assert.equal(purchaseUpgrade(state, index), false);

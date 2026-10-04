@@ -1,87 +1,52 @@
-# StormHacks 2026 – Updraft
+# Updraft
 
-A playable 2D platformer prototype where clearing the arena triggers a dangerous bonus phase. Collect, risk, escape, upgrade, repeat.
+Updraft is a five-level platformer. Choose enemies before each level, collect the pale dots, survive the collapse, gather gold credits, and return to the start-platform exit to shop and continue.
 
-> Status: playable JavaScript prototype, served and built with Vite.
+## Play
 
-## Core Loop
+1. Install dependencies and start the local server:
 
-1. **Collect every normal dot** while jumping between platforms and avoiding enemies. One hit kills you.
-2. **Clearing the dots triggers the bonus phase:** currency dots appear and a deadly boundary starts closing in.
-3. **Collect as much currency as you dare**, then reach the exit before the boundary catches you.
-4. **Spend currency on upgrades**, then enter the next arena with harder enemies and a new platform layout.
-5. **Death ends the run.**
+	```sh
+	npm install
+	npm run dev
+	```
 
-The exit is the key choice: leave safely with what you have, or risk another jump for more currency. Without an exit, the shrinking arena would guarantee death.
-
-## Design Notes
-
-- **Shrinking boundary:** a hazard rising from the bottom. It suits platforming, is easy to read, and pushes players upward.
-- **Bonus dot placement:** spread currency dots along several routes so players choose between safe pickups and valuable detours.
-- **Death boundary is always lethal**, even with a shield, so ordinary hazards are clearly distinct from the arena's time limit.
-- **Endless map:** the world streams deterministic platform chunks around the player in both directions. There are no invisible walls; falling below the camera into the void ends the run.
-
-## Upgrades
-
-| Upgrade | Effect |
-| --- | --- |
-| Shield | Absorbs one enemy or spike hit, then breaks |
-| Double jump | Helps reach dots and escape danger |
-| Dash | Short burst of movement |
-| Dot magnet | Collects nearby dots |
-| Slow collapse | Delays or slows the shrinking boundary |
-| Last chance | Saves you once per run and returns you to a safe platform |
-| Dot compass | 5 credits; an arrow points to the nearest uncollected dot |
-
-## Prototype Scope (MVP)
-
-- [x] One arena with normal dots and currency dots
-- [x] Rising death zone and exit
-- [x] Single-use shield
-- [x] Currency-funded upgrades
-
-Goal: test whether the collect-and-escape loop is fun before choosing a theme.
-
-## Open Decisions
-
-- Should currency buy upgrades **during the current run**, **permanently between runs**, or both? (Start with in-run for the hackathon.)
-- Final theme and art style.
-- Engine / tech stack.
-
-## Getting Started
-
-Install dependencies and start the Vite development server:
-
-```sh
-npm install
-npm run dev
-```
-
-Vite enables hot reload while developing. Create a production bundle with `npm run build`, or serve that bundle locally with `npm run preview`.
+2. Open the Vite URL, select **Enter intermission**, then choose two enemies for the upcoming level. Picks can repeat while that enemy type is below its run cap.
+3. In the shop, spend credits on upgrades or press **Enter** to start the level. On levels 3 and 5, first choose an offered enemy modifier or skip it.
+4. Collect every pale dot to trigger the collapse. Gold dots award one credit each; platforms that collapse can take their uncollected dots with them.
+5. Reach the exit on the start platform to move to the next intermission. Clear level 5 to win. Falling into the void or taking a fatal enemy hit ends the run.
 
 ## Controls
 
-- Move: `A` / `D` or left/right arrows
-- Jump: `W`, `Space`, or up arrow
-- Dash: `Shift` after buying the dash upgrade
-- Dot compass: buy the upgrade at the station; its arrow points toward the nearest uncollected dot
-- Start, retry, or begin another attempt: `Enter`
-- Buy upgrades at the station: click a purchase button or press `1` through `4`
+| Action | Controls |
+| --- | --- |
+| Move | `A` / `D` or left / right arrows |
+| Jump | `W`, `Space`, or up arrow |
+| Drop through a platform | `S` or down arrow |
+| Dash | `Shift`, after buying Dash |
+| Choose an intermission option | Click a card or press `1`–`4` |
+| Skip a modifier offer | Click Skip or press `Enter` |
+| Buy an upgrade | Click its purchase area or press `1`–`6` |
+| Start / continue | `Enter` |
 
-Collect 10 pale dots to begin the bonus phase. Gold dots award credits; reach the lit exit before the rising zone catches you. The shield absorbs one enemy collision per attempt, but does not protect against the zone or falling into the void. Credits carry between attempts. At the upgrade station, buy double jump (8 credits), dash (6 credits), a slower rising zone (10 credits), or the dot compass (5 credits). Purchased upgrades persist; the world streams new chunks as you explore.
+The player has one air jump by default. Double Air Jump grants a second air jump; landing on a platform replenishes them. One enemy hit is absorbed per level before another enemy hit ends the run. Void Shield is separate and rescues one fall into the void per run.
 
-## Roadmap
+## Upgrades
 
-- [x] MVP prototype
-- [ ] Remaining upgrades
-- [ ] Multiple arena layouts
-- [ ] Enemy variety and difficulty scaling
-- [ ] Theme, art, and audio polish
+| Upgrade | Cost | Effect |
+| --- | ---: | --- |
+| Double Air Jump | 25 credits | Grants one additional air jump per airtime. |
+| Speed Ring | 15, 25, then 35 credits | Each ring increases movement speed by 10%; limit three. |
+| Void Shield | 35 credits | Rescues one void fall and drops the player above the highest platform. |
+| Dash | 25 credits | Unlocks a short movement burst with `Shift`. |
+| Slow the Rise | 30 credits | Planned; currently has no gameplay effect. |
+| Dot Compass | 15 credits | Points toward the nearest uncollected dot. |
 
-## Team
+Credits and purchased upgrades carry through the run. Completing levels 2 and 4 also offers one optional modifier for 5 credits.
 
-_To be added._
+## Development
 
-## License
-
-_To be added._
+```sh
+npm test
+npm run build
+```

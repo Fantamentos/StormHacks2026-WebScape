@@ -1,15 +1,15 @@
 export const SPEED_RING_MAX_PURCHASES = 3;
-export const SPEED_RING_BASE_COST = 5;
-export const SPEED_RING_COST_INCREMENT = 5;
+export const SPEED_RING_BASE_COST = 15;
+export const SPEED_RING_COST_INCREMENT = 10;
 export const SPEED_RING_MOVEMENT_BONUS = 0.1;
 
 export const upgrades = [
-  { key: 'doubleJump', title: 'DOUBLE AIR JUMP', detail: 'Two air jumps per airtime', cost: 8 },
+  { key: 'doubleJump', title: 'DOUBLE AIR JUMP', detail: 'Two air jumps per airtime', cost: 25 },
   { key: 'speedRings', title: 'SPEED RING', detail: 'Each ring adds 10% movement speed; stacks up to three', cost: SPEED_RING_BASE_COST, maxPurchases: SPEED_RING_MAX_PURCHASES },
-  { key: 'voidShield', title: 'VOID SHIELD', detail: 'Rescue one fall and return above the highest platform', cost: 12 },
-  { key: 'dash', title: 'DASH', detail: 'Shift for a burst of speed', cost: 6 },
-  { key: 'slowZone', title: 'SLOW THE RISE', detail: 'Death zone climbs 25% slower', cost: 10 },
-  { key: 'compass', title: 'DOT COMPASS', detail: 'Arrow points to nearest dot', cost: 5 }
+  { key: 'voidShield', title: 'VOID SHIELD', detail: 'Rescue one fall and return above the highest platform', cost: 35 },
+  { key: 'dash', title: 'DASH', detail: 'Shift for a burst of speed', cost: 25 },
+  { key: 'slowZone', title: 'SLOW THE RISE', detail: 'Death zone climbs 25% slower', cost: 30 },
+  { key: 'compass', title: 'DOT COMPASS', detail: 'Arrow points to nearest dot', cost: 15 }
 ];
 
 export function createOwnedUpgrades() {
