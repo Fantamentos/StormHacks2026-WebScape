@@ -9,7 +9,9 @@ TODO
 - [x] Camera centered on the player on both axes; player can descend freely
 - [x] Void fall death: die after falling 650 px below the last platform landed on (VOID_DEATH_DEPTH in main.js)
 - [x] Bonus phase renamed to Collapse; rising death zone removed
-- [x] Collapse: start platform becomes the exit; farthest platforms from the exit turn white for 2 s then vanish in waves (4 s gap), currency dots vanish with their platforms
+- [x] Collapse: start platform becomes the exit; farthest platforms blink for 4 s, stay white for 2 s, then vanish in waves (4 s gap), currency dots vanish with their platforms
+- [x] Collapse warning: each platform blinks four times at 1 Hz (4 s), stays solid white for 2 s, then disappears (6 s total)
+- [x] Draw the start platform red before collapse; turn it green when collapse begins
 - [ ] Decide collapse speed: warning time, gap time, wave size; consider faster waves in later rounds (constants in src/collapse.js)
 - [x] Generate a finite platform graph for each level, with the map size/depth based on the level number
 - [x] Use the start as the root with four main branches; give later nodes at most two children, assign each node a unique ID, and decrease remaining depth by one per generation until level 1

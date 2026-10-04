@@ -105,13 +105,28 @@ function drawShop(ctx, state, width, height, rounded) {
   ctx.textAlign = 'right'; ctx.fillStyle = '#ffd16d'; ctx.font = '500 13px "DM Mono", monospace'; ctx.fillText(`${state.credits} CREDITS`, 801, 467);
 }
 
+export function getPlatformColors(platform, state) {
+  if (platform.warning) {
+    const warningElapsed = state.collapse.warningElapsed;
+    const blinkOn = warningElapsed >= 4 || Math.floor(warningElapsed * 2) % 2 === 0;
+    if (blinkOn) return { fill: '#ffffff', top: '#ffffff' };
+  }
+  if (platform.id === state.startPlatform?.id) {
+    return state.mode === 'collapse' || state.mode === 'shop'
+      ? { fill: '#287451', top: '#9fe3bd' }
+      : { fill: '#a8443d', top: '#ff826f' };
+  }
+  return { fill: '#34484a', top: '#86b69a' };
+}
+
 export function drawGame(ctx, state, width, height) {
   drawBackground(ctx, width, height);
   ctx.save();
   ctx.translate(-state.camera.x, -state.camera.y);
   for (const platform of state.platforms) {
-    ctx.fillStyle = platform.warning ? '#ffffff' : '#34484a'; ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
-    ctx.fillStyle = platform.warning ? '#ffffff' : '#86b69a'; ctx.fillRect(platform.x, platform.y, platform.w, 3);
+    const colors = getPlatformColors(platform, state);
+    ctx.fillStyle = colors.fill; ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
+    ctx.fillStyle = colors.top; ctx.fillRect(platform.x, platform.y, platform.w, 3);
   }
   for (const dot of state.dots) {
     if (dot.taken) continue;

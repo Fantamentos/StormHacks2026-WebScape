@@ -1,10 +1,11 @@
-const WARNING_SECONDS = 2;
 const GAP_SECONDS = 4;
 const WAVE_FRACTION = 0.2;
 const MIN_WAVE_SIZE = 3;
+export const BLINK_SECONDS = 4;
+export const SOLID_WARNING_SECONDS = 2;
 
 export function startCollapseWaves(state) {
-  state.collapse = { timer: GAP_SECONDS, wave: null };
+  state.collapse = { timer: GAP_SECONDS, wave: null, warningElapsed: 0 };
 }
 
 function pickWave(state) {
@@ -25,9 +26,12 @@ export function updateCollapse(state, dt) {
     collapse.wave = pickWave(state);
     if (!collapse.wave) return;
     for (const platform of collapse.wave) platform.warning = true;
-    collapse.timer = WARNING_SECONDS;
+    collapse.warningElapsed = 0;
     return;
   }
+
+  collapse.warningElapsed += dt;
+  if (collapse.warningElapsed < BLINK_SECONDS + SOLID_WARNING_SECONDS) return;
 
   const gone = new Set(collapse.wave);
   state.platforms = state.platforms.filter(platform => !gone.has(platform));
