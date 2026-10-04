@@ -1,6 +1,6 @@
-# Updraft
+# WebScape
 
-Updraft is a five-level platformer. Choose enemies before each level, collect the pale dots, survive the collapse, gather gold credits, and return to the start-platform exit to shop and continue.
+WebScape is a five-level platformer. Choose enemies before each level, collect the pale dots, survive the collapse, gather gold credits, and return to the start-platform exit to shop and continue.
 
 ## Play
 

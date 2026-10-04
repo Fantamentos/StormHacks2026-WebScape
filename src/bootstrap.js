@@ -10,7 +10,7 @@ async function beginLevel() {
   beginButton.disabled = true;
 
   try {
-    const [{ default: Phaser }, { default: UpdraftScene }] = await Promise.all([
+    const [{ default: Phaser }, { default: WebScapeScene }] = await Promise.all([
       import('phaser'),
       import('./scene.js')
     ]);
@@ -33,7 +33,7 @@ async function beginLevel() {
           velocityIterations: 6
         }
       },
-      scene: [UpdraftScene]
+      scene: [WebScapeScene]
     });
     intermission.hidden = true;
   } catch (error) {

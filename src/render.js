@@ -217,7 +217,7 @@ function updateOverlay(scene, state) {
     scene.uiGraphics.lineStyle(1, 0x526760, 1);
     scene.uiGraphics.fillRoundedRect(216, 202, 528, 196, 8);
     scene.uiGraphics.strokeRoundedRect(216, 202, 528, 196, 8);
-    scene.overlayTitle.setText(mode === 'dead' ? 'RUN ENDED' : mode === 'victory' ? 'RUN CLEARED' : 'UPDRAFT');
+    scene.overlayTitle.setText(mode === 'dead' ? 'RUN ENDED' : mode === 'victory' ? 'RUN CLEARED' : 'WEBSCAPE');
     scene.overlayCopy.setText('Collect every pale dot to start the collapse.');
     scene.overlayPrompt.setText(mode === 'dead'
       ? `Credits banked: ${state.credits}  ·  Press ENTER to retry`

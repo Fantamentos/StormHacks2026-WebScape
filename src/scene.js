@@ -39,9 +39,9 @@ const DASH_SPEED = 530 / 60;
 const JUMP_SPEED = -470 / 60;
 const DOUBLE_JUMP_SPEED = -430 / 60;
 
-export default class UpdraftScene extends Phaser.Scene {
+export default class WebScapeScene extends Phaser.Scene {
   constructor() {
-    super({ key: 'Updraft' });
+    super({ key: 'WebScape' });
   }
 
   create() {
