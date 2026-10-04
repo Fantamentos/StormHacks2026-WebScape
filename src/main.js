@@ -1,6 +1,7 @@
 import { startCollapseWaves, updateCollapse } from './collapse.js';
 import { drawGame } from './draw.js';
 import { generateLevel } from './map.js';
+import { resolvePlatformLanding } from './physics.js';
 import { createOwnedUpgrades, purchaseUpgrade, upgrades } from './upgrades.js';
 
 const canvas = document.querySelector('#game');
@@ -124,21 +125,12 @@ function update(dt) {
   if (direction) state.player.facing = direction;
   state.player.vx = direction * (state.player.dashTime > 0 ? 530 : 225);
   if (state.player.dashTime <= 0) state.player.vy += 1120 * dt;
+  const previousY = state.player.y;
   state.player.x += state.player.vx * dt;
   state.player.y += state.player.vy * dt;
 
   state.player.grounded = false;
-  for (const platform of state.platforms) {
-    const crossedTop = state.player.y + state.player.h >= platform.y && state.player.y + state.player.h - state.player.vy * dt <= platform.y;
-    const overlaps = state.player.x + state.player.w > platform.x && state.player.x < platform.x + platform.w;
-    if (state.player.vy >= 0 && crossedTop && overlaps) {
-      state.player.y = platform.y - state.player.h;
-      state.player.vy = 0;
-      state.player.grounded = true;
-      state.player.groundY = platform.y;
-      state.player.jumps = 0;
-    }
-  }
+  resolvePlatformLanding(state.player, state.platforms, previousY);
 
   if (state.player.y - state.player.groundY > VOID_DEATH_DEPTH) {
     state.mode = 'dead';

@@ -115,10 +115,7 @@ function simulateLandings(source, platforms) {
             for (const platform of nearby) {
               const crossedTop = y + playerHeight >= platform.y && previousBottom <= platform.y;
               const overlaps = x + playerWidth > platform.x && x < platform.x + platform.w;
-              if (velocityY >= 0 && crossedTop && overlaps) {
-                landed = platform;
-                break;
-              }
+              if (velocityY >= 0 && crossedTop && overlaps && (!landed || platform.y < landed.y)) landed = platform;
             }
             if (landed) {
               if (landed.id !== source.id) landings.add(landed.id);
