@@ -2,15 +2,25 @@ const DOTS_PER_PLATFORM = 3;
 const PICKUP_RADIUS = 24;
 
 export function createPlatformDots(platforms, type) {
-  return platforms.flatMap(platform => Array.from({ length: DOTS_PER_PLATFORM }, (_, index) => ({
-    id: `${platform.id}:${type}:${index}`,
-    x: platform.x + platform.w * (index + 1) / (DOTS_PER_PLATFORM + 1),
-    y: platform.y - 28,
-    type,
-    taken: false,
-    platform,
-    platformId: platform.id
-  })));
+  return platforms.flatMap(platform => {
+    const surfaces = platform.collisionSections || [{ x: 0, y: 0, width: platform.w }];
+    return Array.from({ length: DOTS_PER_PLATFORM }, (_, index) => {
+      const surfaceIndex = index % surfaces.length;
+      const surface = surfaces[surfaceIndex];
+      const surfaceDotIndex = Math.floor(index / surfaces.length);
+      const surfaceDotCount = Math.ceil((DOTS_PER_PLATFORM - surfaceIndex) / surfaces.length);
+      const fraction = (surfaceDotIndex + 1) / (surfaceDotCount + 1);
+      return {
+        id: `${platform.id}:${type}:${index}`,
+        x: platform.x + surface.x + surface.width * fraction,
+        y: platform.y + surface.y - 28,
+        type,
+        taken: false,
+        platform,
+        platformId: platform.id
+      };
+    });
+  });
 }
 
 export function collectNearbyDots(player, dots) {

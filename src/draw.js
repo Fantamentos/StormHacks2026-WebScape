@@ -16,9 +16,25 @@ function roundedRect(ctx, x, y, w, h, radius, fill, stroke) {
 function drawPlatform(ctx, platform, colors) {
   const shape = getPlatformShape(platform.shape);
   const radius = shape.cornerRadius;
-  roundedRect(ctx, platform.x, platform.y, platform.w, platform.h, radius, colors.fill);
-  ctx.fillStyle = colors.top;
-  ctx.fillRect(platform.x + radius, platform.y, platform.w - radius * 2, 3);
+  if (shape.detail === 'y-support') {
+    ctx.beginPath();
+    ctx.moveTo(platform.x + platform.w / 2, platform.y + platform.h - 3);
+    ctx.lineTo(platform.x + 30, platform.y + 8);
+    ctx.moveTo(platform.x + platform.w / 2, platform.y + platform.h - 3);
+    ctx.lineTo(platform.x + platform.w - 30, platform.y + 8);
+    ctx.strokeStyle = colors.fill;
+    ctx.lineWidth = 9;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  for (const section of shape.bodySections) {
+    roundedRect(ctx, platform.x + section.x, platform.y + section.y, section.width, section.height, radius, colors.fill);
+    if (section.y === 0) {
+      ctx.fillStyle = colors.top;
+      ctx.fillRect(platform.x + section.x + radius, platform.y + section.y, section.width - radius * 2, 3);
+    }
+  }
 
   if (platform.warning) return;
   if (shape.detail === 'supports') {
@@ -28,6 +44,15 @@ function drawPlatform(ctx, platform, colors) {
   } else if (shape.detail === 'stripe') {
     ctx.fillStyle = 'rgba(211, 241, 220, .32)';
     ctx.fillRect(platform.x + 8, platform.y + 6, platform.w - 16, 1);
+  } else if (shape.detail === 't-support') {
+    ctx.fillStyle = 'rgba(12, 25, 25, .24)';
+    ctx.fillRect(platform.x + platform.w / 2 - 2, platform.y + 17, 4, platform.h - 20);
+  } else if (shape.detail === 'l-support') {
+    ctx.fillStyle = 'rgba(12, 25, 25, .24)';
+    ctx.fillRect(platform.x + 7, platform.y + 17, 4, platform.h - 20);
+  } else if (shape.detail === 'step') {
+    ctx.fillStyle = 'rgba(211, 241, 220, .3)';
+    ctx.fillRect(platform.x + 7, platform.y + 5, platform.w - 14, 1);
   }
 }
 

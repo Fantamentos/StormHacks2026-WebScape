@@ -1,3 +1,5 @@
+import { getPlatformCollisionSections } from './platforms/index.js';
+
 export function resolvePlatformLanding(player, platforms, previousY) {
   if (player.vy < 0) return null;
 
@@ -6,9 +8,15 @@ export function resolvePlatformLanding(player, platforms, previousY) {
   let landing = null;
 
   for (const platform of platforms) {
-    const crossedTop = previousBottom <= platform.y && currentBottom >= platform.y;
-    const overlaps = player.x + player.w > platform.x && player.x < platform.x + platform.w;
-    if (crossedTop && overlaps && (!landing || platform.y < landing.y)) landing = platform;
+    for (const section of getPlatformCollisionSections(platform)) {
+      const surfaceY = platform.y + section.y;
+      const sectionX = platform.x + section.x;
+      const crossedTop = previousBottom <= surfaceY && currentBottom >= surfaceY;
+      const overlaps = player.x + player.w > sectionX && player.x < sectionX + section.width;
+      if (crossedTop && overlaps && (!landing || surfaceY < landing.y)) {
+        landing = { platform, y: surfaceY };
+      }
+    }
   }
 
   if (!landing) return null;
@@ -17,5 +25,5 @@ export function resolvePlatformLanding(player, platforms, previousY) {
   player.grounded = true;
   player.groundY = landing.y;
   player.jumps = 0;
-  return landing;
+  return landing.platform;
 }

@@ -18,8 +18,8 @@ TODO
 - [x] Generate a finite platform graph for each level, with the map size/depth based on the level number
 - [x] Use the start as the root with four main branches; give later nodes at most two children, assign each node a unique ID, and decrease remaining depth by one per generation until level 1
 - [x] Use BFS from the start to identify platform distance/parent routes; collapse the outermost (greatest-distance) platforms first while preserving a jumpable route back to the start
-- [ ] Add static T, Y, and L platforms using simple collision sections while keeping each shape as one map node
-- [ ] Add small floating step platforms as optional connectors; include them in reachability checks and collapse behavior
+- [x] Add static T, Y, and L platforms using composite support silhouettes and continuous collision tops, keeping each shape as one map node
+- [x] Add small floating step platforms as optional connectors; include them in reachability checks and collapse behavior
 - [ ] Later add moving platforms; account for timing in reachability and give a clear warning before they collapse
 - [ ] Later add ziplines between platforms; decide whether they work one-way or both ways and what happens if an endpoint collapses
 - [x] Give the first child on each of the start's four branches exactly two continuing children, so each branch spreads into two routes

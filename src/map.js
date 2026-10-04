@@ -1,5 +1,5 @@
 import { createPlatformDots } from './dots.js';
-import { choosePlatformShape, STANDARD_PLATFORM } from './platforms/index.js';
+import { choosePlatformShape, getPlatformShape, STANDARD_PLATFORM } from './platforms/index.js';
 
 const ROOT_BRANCHES = [
   { x: 1, y: 0, label: 'east' },
@@ -22,6 +22,7 @@ function createNode(id, x, y, depth, branch, parentId = null, shape = STANDARD_P
     w: shape.width,
     h: shape.height,
     shape: shape.type,
+    collisionSections: shape.collisionSections,
     parentId,
     childIds: [],
     distance: 0,
@@ -92,7 +93,6 @@ function simulateLandings(source, platforms) {
   const speed = 225;
   const gravity = 1120;
   const dt = 1 / 60;
-  const launchOffsets = [12, (source.w - playerWidth) / 2, source.w - playerWidth - 12];
   const nearby = platforms.filter(platform => {
     const horizontalRange = speed * 1.15 + source.w;
     return platform.x + platform.w > source.x - horizontalRange
@@ -102,49 +102,86 @@ function simulateLandings(source, platforms) {
   });
   const landings = new Set();
 
-  for (const launchOffset of launchOffsets) {
-    for (const jump of [true, false]) {
-      for (const direction of [-1, 0, 1]) {
-        for (let holdFrames = 0; holdFrames <= 60; holdFrames += 3) {
-          let x = source.x + launchOffset;
-          let y = source.y - playerHeight;
-          let velocityY = jump ? -470 : 0;
-          let grounded = !jump;
+  for (const sourceSurface of source.collisionSections) {
+    const launchOffsets = sourceSurface.width >= playerWidth + 24
+      ? [12, (sourceSurface.width - playerWidth) / 2, sourceSurface.width - playerWidth - 12]
+      : [(sourceSurface.width - playerWidth) / 2];
+    for (const launchOffset of launchOffsets) {
+      for (const jump of [true, false]) {
+        for (const direction of [-1, 0, 1]) {
+          for (let holdFrames = 0; holdFrames <= 60; holdFrames += 3) {
+            let x = source.x + sourceSurface.x + launchOffset;
+            let y = source.y + sourceSurface.y - playerHeight;
+            let velocityY = jump ? -470 : 0;
+            let grounded = !jump;
 
-          for (let frame = 0; frame < 90; frame += 1) {
-            const previousBottom = y + playerHeight;
-            x += frame < holdFrames ? direction * speed * dt : 0;
-            if (grounded && x + playerWidth > source.x && x < source.x + source.w) {
-              y = source.y - playerHeight;
-              velocityY = 0;
-              continue;
-            }
-
-            grounded = false;
-            velocityY += gravity * dt;
-            y += velocityY * dt;
-            let landed = null;
-            for (const platform of nearby) {
-              const crossedTop = y + playerHeight >= platform.y && previousBottom <= platform.y;
-              const overlaps = x + playerWidth > platform.x && x < platform.x + platform.w;
-              if (velocityY >= 0 && crossedTop && overlaps && (!landed || platform.y < landed.y)) landed = platform;
-            }
-            if (landed) {
-              if (landed.id !== source.id) landings.add(landed.id);
-              else {
-                y = source.y - playerHeight;
+            for (let frame = 0; frame < 90; frame += 1) {
+              const previousBottom = y + playerHeight;
+              x += frame < holdFrames ? direction * speed * dt : 0;
+              const sourceX = source.x + sourceSurface.x;
+              const sourceY = source.y + sourceSurface.y;
+              if (grounded && x + playerWidth > sourceX && x < sourceX + sourceSurface.width) {
+                y = sourceY - playerHeight;
                 velocityY = 0;
-                grounded = true;
+                continue;
               }
+
+              grounded = false;
+              velocityY += gravity * dt;
+              y += velocityY * dt;
+              let landed = null;
+              for (const platform of nearby) {
+                for (const section of platform.collisionSections) {
+                  const surfaceY = platform.y + section.y;
+                  const sectionX = platform.x + section.x;
+                  const crossedTop = y + playerHeight >= surfaceY && previousBottom <= surfaceY;
+                  const overlaps = x + playerWidth > sectionX && x < sectionX + section.width;
+                  if (velocityY >= 0 && crossedTop && overlaps && (!landed || surfaceY < landed.y)) landed = { platform, y: surfaceY };
+                }
+              }
+              if (landed) {
+                if (landed.platform.id !== source.id) landings.add(landed.platform.id);
+                else {
+                  y = landed.y - playerHeight;
+                  velocityY = 0;
+                  grounded = true;
+                }
+              }
+              if (landed && landed.platform.id !== source.id) break;
+              if (y > source.y - playerHeight + 650) break;
             }
-            if (landed && landed.id !== source.id) break;
-            if (y > source.y - playerHeight + 650) break;
           }
         }
       }
     }
   }
   return landings;
+}
+
+function addFloatingSteps(nodes, level) {
+  const leaves = nodes.filter(node => node !== nodes[0] && node.childIds.length === 0 && ['narrow', 'standard', 'wide'].includes(node.shape));
+  let added = 0;
+  for (let index = 0; index < leaves.length; index += 1) {
+    if (added >= Math.max(2, Math.floor(level / 2))) break;
+    if (index !== 0 && randomFor(level * 211 + index * 97) < 0.55) continue;
+    const parent = leaves[index];
+    const shape = getPlatformShape('step');
+    const direction = parent.branch.routeDirection || parent.branch.x || 1;
+    const gap = direction > 0 ? parent.w + 42 : shape.width + 42;
+    const step = createNode(
+      `${parent.id}-step`,
+      parent.x + direction * gap,
+      parent.y,
+      Math.max(0, parent.remainingDepth - 1),
+      parent.branch,
+      parent.id,
+      shape
+    );
+    step.optionalStep = true;
+    parent.childIds.push(step.id);
+    nodes.push(step);
+    added += 1;
+  }
 }
 
 function visitGraph(startId, adjacency) {
@@ -174,7 +211,15 @@ function validatePhysicsRoutes(nodes, root) {
   const reachable = visitGraph(root.id, adjacency);
   const canReturn = visitGraph(root.id, reverse);
   const unreachable = nodes.find(node => !reachable.has(node.id));
-  if (unreachable) return { failure: `${unreachable.id}:not-reachable` };
+  if (unreachable) {
+    const ancestors = [];
+    let current = unreachable;
+    while (current) {
+      ancestors.unshift(`${current.id}:${current.shape}`);
+      current = nodes.find(node => node.id === current.parentId);
+    }
+    return { failure: `${ancestors.join(' <- ')}:not-reachable` };
+  }
   const stranded = nodes.find(node => !canReturn.has(node.id));
   if (stranded) return { failure: `${stranded.id}:no-route-home` };
   return { adjacency };
@@ -226,6 +271,7 @@ function buildCandidate(level, attempt) {
     });
     if (routes.length !== 2) throw new Error('Each main branch must split into two routes.');
   }
+  addFloatingSteps(nodes, level);
 
   const platforms = nodes;
   const dots = createPlatformDots(platforms, 'normal');

@@ -3,5 +3,7 @@ export default Object.freeze({
   width: 96,
   height: 14,
   cornerRadius: 2,
-  detail: 'stripe'
+  detail: 'stripe',
+  bodySections: [{ x: 0, y: 0, width: 96, height: 14 }],
+  collisionSections: [{ x: 0, y: 0, width: 96 }]
 });

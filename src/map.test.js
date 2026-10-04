@@ -18,9 +18,11 @@ test('level graphs grow with four two-route branches and physical BFS routes', (
     assert.equal(map.root.childIds.length, 4);
     assert.ok(map.root.childIds.every(id => map.byId.get(id).childIds.length === 2));
     assert.ok(map.nodes.filter(node => node !== map.root).every(node => node.childIds.length <= 2));
+    assert.ok(map.nodes.some(node => node.optionalStep));
     assert.ok(map.nodes.every(node => Number.isFinite(node.distance)));
     assert.ok(map.nodes.every(node => node === map.root || ids.has(node.routeParentId)));
-    assert.ok(map.nodes.filter(node => node !== map.root).every(node => node.remainingDepth === map.byId.get(node.parentId).remainingDepth - 1));
+    assert.ok(map.nodes.filter(node => node !== map.root && !node.optionalStep).every(node => node.remainingDepth === map.byId.get(node.parentId).remainingDepth - 1));
+    assert.ok(map.nodes.filter(node => node.optionalStep).every(node => node.shape === 'step' && node.w === 48));
 
     for (const node of map.nodes) {
       if (!node.parentId) continue;
@@ -69,5 +71,18 @@ test('collapse removes physical BFS leaves without removing the exit route', asy
 });
 
 test('platform folder shapes can be selected from seeded random values', () => {
-  assert.deepEqual([0, 0.5, 0.99].map(value => choosePlatformShape(value).type), ['narrow', 'standard', 'wide']);
+  assert.deepEqual(
+    [0.01, 0.2, 0.35, 0.5, 0.65, 0.8, 0.95].map(value => choosePlatformShape(value).type),
+    PLATFORM_SHAPES.map(shape => shape.type)
+  );
+});
+
+test('T, Y, and L shapes have composite support bodies and walkable top collision sections', () => {
+  for (const type of ['t', 'y', 'l']) {
+    const shape = PLATFORM_SHAPES.find(platform => platform.type === type);
+    assert.ok(shape.bodySections.length > 1);
+    assert.ok(shape.collisionSections.length > 0);
+    assert.ok(shape.collisionSections.every(section => section.y === 0));
+    assert.ok(shape.collisionSections.reduce((width, section) => width + section.width, 0) >= shape.width);
+  }
 });
